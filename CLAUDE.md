@@ -50,19 +50,56 @@ cd build/source
 
 ## 运行
 
-服务器运行前需要链接数据目录（objects、transitions、categories 等），通常来自 `OneLifeData7`：
+服务器运行前需要链接数据目录（objects、transitions、categories、animations 等），通常来自 `OneLifeData7`：
 
 ```bash
 cd server
 ln -s ../../OneLifeData7/objects .
 ln -s ../../OneLifeData7/transitions .
 ln -s ../../OneLifeData7/categories .
+ln -s ../../OneLifeData7/animations .
 ln -s ../../OneLifeData7/tutorialMaps .
 ln -s ../../OneLifeData7/contentSettings .
 ln -s ../../OneLifeData7/dataVersionNumber.txt .
 ln -s ../../OneLifeData7/isAHAP.txt .
 ./OneLifeServer
 ```
+
+### 服务端数据依赖说明
+
+服务端实际加载的数据目录（均来自 OneLifeData7）：
+
+| 目录/文件 | 用途 | 必需 |
+|-----------|------|------|
+| objects/ | 游戏对象定义（4431 个 + 自动生成变体） | 是 |
+| transitions/ | 合成/转化配方 | 是 |
+| categories/ | 对象分类 | 是 |
+| animations/ | 动画元数据（服务端用于对象状态计算） | 是 |
+| tutorialMaps/ | 教程地图数据 | 启用教程时需要 |
+| contentSettings/ | 内容相关配置（婴儿骨骼等） | 是 |
+| dataVersionNumber.txt | 数据版本号 | 是 |
+| isAHAP.txt | AHAP 变体标识 | 是 |
+
+服务端**不需要**：sprites/、sounds/、music/、ground/、faces/、scenes/、overlays/（这些仅客户端渲染使用）。
+
+### 部署包构建
+
+预构建的部署包位于 `dist/` 目录：
+
+```bash
+dist/
+├── onelife-server-linux-x64.tar.gz  # 服务端（~4.3M）
+├── onelife-client-linux-x64.tar.gz  # 客户端（~66M）
+└── README.md                        # 部署说明
+```
+
+服务端部署包结构采用运行时隔离设计：
+- `bin/` — 二进制 + 文本资源（不可变）
+- `data/` — 游戏数据（不可变）
+- `settings/` — 配置文件
+- `runtime/` — 启动后自动创建，所有 .db 和日志落在此处
+
+备份世界：`tar czf backup.tar.gz runtime/`；重置世界：`rm -rf runtime/`
 
 ### 客户端连接远程服务端
 
