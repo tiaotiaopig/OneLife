@@ -29,4 +29,7 @@ server/categories
 server/objects
 server/transitions
 
-dist/
+dist/client-linux-x64/
+dist/server-linux-x64/
+dist/*.tar.gz
+!dist/README.md
