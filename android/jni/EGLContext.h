@@ -6,10 +6,13 @@
 
 namespace onelife {
 
-class EGLContext {
+// 注意：类名故意不叫 EGLContext，避免与 EGL/egl.h 中的同名类型冲突
+// (EGL_NO_CONTEXT 宏会展开为 static_cast<EGLContext>(0)，在本命名空间内
+//  会优先解析为本地类名，导致编译错误)
+class EGLContextWrapper {
 public:
-    EGLContext();
-    ~EGLContext();
+    EGLContextWrapper();
+    ~EGLContextWrapper();
 
     // 初始化 EGL，绑定到 ANativeWindow
     // 返回 0 成功，-1 失败

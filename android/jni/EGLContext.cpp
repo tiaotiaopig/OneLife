@@ -7,7 +7,7 @@
 
 namespace onelife {
 
-EGLContext::EGLContext()
+EGLContextWrapper::EGLContextWrapper()
     : mDisplay(EGL_NO_DISPLAY)
     , mContext(EGL_NO_CONTEXT)
     , mSurface(EGL_NO_SURFACE)
@@ -15,13 +15,13 @@ EGLContext::EGLContext()
     , mHeight(0)
 {}
 
-EGLContext::~EGLContext() {
+EGLContextWrapper::~EGLContextWrapper() {
     term();
 }
 
-int EGLContext::init(ANativeWindow* window) {
+int EGLContextWrapper::init(ANativeWindow* window) {
     if (!window) {
-        LOGE("EGLContext::init: null window");
+        LOGE("EGLContextWrapper::init: null window");
         return -1;
     }
 
@@ -85,7 +85,7 @@ int EGLContext::init(ANativeWindow* window) {
     return 0;
 }
 
-void EGLContext::term() {
+void EGLContextWrapper::term() {
     if (mDisplay != EGL_NO_DISPLAY) {
         eglMakeCurrent(mDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
         if (mContext != EGL_NO_CONTEXT) {
@@ -102,7 +102,7 @@ void EGLContext::term() {
     mWidth = mHeight = 0;
 }
 
-void EGLContext::swapBuffers() {
+void EGLContextWrapper::swapBuffers() {
     if (mDisplay != EGL_NO_DISPLAY && mSurface != EGL_NO_SURFACE) {
         eglSwapBuffers(mDisplay, mSurface);
     }
