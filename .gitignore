@@ -33,3 +33,22 @@ dist/client-linux-x64/
 dist/server-linux-x64/
 dist/*.tar.gz
 !dist/README.md
+
+# Android build artifacts
+android/build/
+android/.cxx/
+android/assets/sprites
+android/assets/sounds
+android/assets/objects
+android/assets/transitions
+android/assets/categories
+android/assets/animations
+android/assets/tutorialMaps
+android/assets/contentSettings
+android/assets/dataVersionNumber.txt
+android/assets/isAHAP.txt
+android/assets/music
+android/assets/ground
+android/assets/faces
+android/assets/scenes
+android/assets/overlays
