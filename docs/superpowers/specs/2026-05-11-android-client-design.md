@@ -1,0 +1,229 @@
+# OneLife Android 客户端设计
+
+## 背景
+
+OneLife（One Hour One Life）目前提供 Linux/macOS/Windows 桌面客户端，通过 `gameSource/` 中的 SDL 1.2 + OpenGL 实现，并依赖同级仓库 `minorGems` 提供的跨平台基础设施。游戏运行依赖独立的 `OneLifeServer`（端口 8005，ASCII 文本协议），客户端与服务端在协议层解耦良好。
+
+在用户的当前需求下，需要把客户端移植到 Android 平台。考虑两种主要路线：
+
+- **方案 A：Android 客户端 + Linux 服务端**——只移植客户端，服务端仍由 Linux 主机提供。
+- **方案 B：完全离线版**——把服务端 33K 行代码裁剪并嵌入 APK，去除网络层，本地直连。
+
+经过可行性评估：
+
+- 方案 A 仅涉及客户端图形/输入/资源加载等模块改造，工作量约 4-5 周，风险低，保留多人游戏完整功能，服务端零改动。
+- 方案 B 需要重构 server.cpp 网络层，重写消息回环，处理地图数据库大小、内存压力、调试复杂度等问题，工作量约 11-16 周，且会牺牲多人功能。
+
+用户已确认选择方案 A。本设计聚焦在客户端的 Android 移植，并为未来"嵌入式服务端"离线模式预留扩展点。
+
+## 目标
+
+- 提供一个独立的 Android APK 构建通道，能在 Android 10+（API 29）设备上运行
+- 客户端通过 TCP 8005 端口连接局域网/远端 Linux `OneLifeServer`，复用现有 `protocol.txt` 协议
+- 复用 `gameSource/` 和 `minorGems/` 中绝大多数桌面代码，桌面端构建不受影响
+- 资源（sprites/sounds/objects 等）打包进 APK，安装即可玩
+- 触摸事件透明映射到现有"鼠标事件"模型，复用 `LivingLifePage.cpp` 既有交互逻辑
+- 为未来嵌入式服务端方案预留 `GameBackend` 抽象，当前仅实现 `NetworkBackend`
+
+## 非目标
+
+以下内容不在本次设计范围内：
+
+- 不实现嵌入式服务端（EmbeddedBackend），仅留接口
+- 不修改服务端代码（`server/` 目录、协议、数据库等一律不动）
+- 不引入 SDL2 或其他大型跨平台库
+- 不支持 iOS 移植
+- 不支持低端设备（<4GB RAM）的特殊优化
+- 不设计虚拟摇杆/动作按钮等触屏专属 UI，仅做鼠标事件模拟
+- 不接入内购、广告、统计、Google Play 发布流程
+
+## 核心约束
+
+| 项目 | 决定 |
+|---|---|
+| 最低 Android 版本 | API 29（Android 10+） |
+| 目标 ABI | arm64-v8a + armeabi-v7a |
+| 开发环境 | 纯命令行 + Android NDK + CMake，不依赖 Android Studio |
+| 屏幕方向 | 横屏锁定（`sensorLandscape`） |
+| 平台抽象层 | 原生 NDK API（EGL/OpenGL ES 3/AAssetManager/OpenSL ES），无 SDL2 |
+| 入口形式 | NativeActivity（`android_native_app_glue`），无需 Java/Kotlin 代码 |
+| 触摸交互 | 单指=左键，长按=右键，双指=Shift+左键，拖拽=鼠标拖拽 |
+| 资源打包 | sprites/sounds/objects 等全部打入 APK assets |
+| `minorGems` 修改 | 必须用 worktree 隔离到 `android-port` 分支 |
+| 桌面端 | 通过 `#ifdef __ANDROID__` 隔离 Android 代码，桌面端构建不受影响 |
+
+## 总体架构
+
+```
+┌──────────────────────────────────────────────┐
+│           Android APK                        │
+│  ┌────────────────────────────────────────┐  │
+│  │ NativeActivity                         │  │
+│  │   android_native_app_glue → C++ 入口   │  │
+│  └────────────────┬───────────────────────┘  │
+│  ┌────────────────▼───────────────────────┐  │
+│  │ Native 层 (libonelife.so)              │  │
+│  │   ├ minorGems Android 平台层（新增）   │  │
+│  │   │    EGL / OpenGL ES / Asset / SL   │  │
+│  │   ├ gameSource（条件编译复用）         │  │
+│  │   │    LivingLifePage / spriteBank…   │  │
+│  │   └ minorGems 基础设施（复用 Unix）    │  │
+│  │        pthread / POSIX socket / 文件  │  │
+│  └────────────────────────────────────────┘  │
+│  assets/  (sprites / sounds / objects)       │
+└────────────────────┬─────────────────────────┘
+                     │ TCP/IP 8005
+                     │ protocol.txt
+┌────────────────────▼─────────────────────────┐
+│   Linux OneLifeServer（不改动）              │
+└──────────────────────────────────────────────┘
+```
+
+## 模块拆解
+
+### 1. Android 工程骨架（`OneLife/android/`）
+
+新增独立目录，包含 Android 专属构建文件，与桌面端 `gameSource/` 解耦。
+
+```
+android/
+├── AndroidManifest.xml          # API 29 + 横屏 + INTERNET 权限 + NativeActivity
+├── CMakeLists.txt               # 主构建脚本（gameSource + minorGems + JNI 胶水）
+├── build.sh                     # cmake → aapt → apksigner 一键脚本
+├── jni/
+│   ├── android_main.cpp         # NativeActivity 入口（android_main）
+│   ├── AndroidPlatform.cpp/.h   # 全局平台句柄管理
+│   ├── EGLContext.cpp/.h        # EGL Display/Context/Surface
+│   ├── AssetFileBridge.cpp/.h   # AAssetManager → minorGems File
+│   ├── TouchInputAdapter.cpp/.h # 触摸→鼠标事件映射
+│   └── OpenSLAudio.cpp/.h       # OpenSL ES 音频后端
+├── res/                          # 图标等 Android 资源
+└── assets/                       # 软链接到 ../../OneLifeData7 子目录
+```
+
+### 2. minorGems Android 平台分支
+
+依据用户记忆中的"同级仓库改动必须 worktree 隔离"规则，在 `../minorGems-android-port` 分支添加 Android 实现：
+
+| 路径 | 内容 |
+|---|---|
+| `minorGems/graphics/openGL/glInclude.h` | 增加 `__ANDROID__` 分支，包含 `<GLES3/gl3.h>` 与 `<EGL/egl.h>` |
+| `minorGems/graphics/android/` | （视需要）Android 特定图形适配 |
+| `minorGems/io/file/android/FileAndroid.cpp` | 重写文件读取，从 AAsset 读 + 内部存储写 |
+| `minorGems/sound/android/OpenSLAudioBackend.cpp` | OpenSL ES 实现 minorGems 音频接口 |
+| `minorGems/game/platforms/Android/gameAndroid.cpp` | 替代 `gameSDL.cpp`，提供主循环 |
+
+POSIX socket、pthread、Time、Path 等可直接复用 `unix/` 和 `linux/` 子目录下的实现，Android NDK 完全兼容。
+
+### 3. gameSource 兼容性改造
+
+`gameSource/` 中只做条件编译式改造，桌面端代码完全不受影响：
+
+| 文件 | 改造内容 |
+|---|---|
+| `gameSource/game.cpp` | `#ifdef __ANDROID__` 提供 `android_main()` 包装，复用 `initGame/drawFrame/freeGame` |
+| `gameSource/spriteBank.cpp` / `soundBank.cpp` | 资源路径通过 minorGems File 抽象层透明替换 |
+| `gameSource/LivingLifePage.cpp` | 输入事件层无需改造（触摸已在 JNI 层翻译为鼠标事件） |
+| `gameSource/GameBackend.h`（新增） | 抽象后端接口（connect/send/receive/disconnect） |
+| `gameSource/NetworkBackend.cpp/.h`（新增） | 当前唯一实现，包装 `SocketClient` |
+
+`GameBackend` 抽象同时应用于桌面端，重构调用点（约 30 处使用 SocketClient 的位置），桌面端功能完全保持不变。
+
+### 4. 触摸输入策略
+
+JNI 层 `TouchInputAdapter` 将 `AInputEvent` 翻译为 minorGems 期望的鼠标/键盘事件：
+
+| 触摸动作 | 鼠标事件 |
+|---|---|
+| 单指 down/move/up | `pointerDown/Move/Up`（左键） |
+| 长按 >500ms | 转换为右键事件 |
+| 双指点击 | 注入 Shift 修饰键 + 左键 |
+| 拖拽 | 标准鼠标拖拽事件序列 |
+
+修饰键状态通过 `isModifierDown(SHIFT/CTRL)` 暴露给 gameSource。聊天虚拟键盘使用 NDK 的 `ANativeActivity_showSoftInput()`（无需 JNI 或 Java 代码）。
+
+### 5. 资源与配置
+
+- 编译期：`android/assets/` 软链接到 `../../OneLifeData7` 子目录（sprites/sounds/objects/transitions/categories/animations/tutorialMaps/contentSettings 等），打包时 `aapt` 把它们打入 APK
+- 运行期：通过 AAssetManager 读取
+- 设置文件：首次启动从 `assets/default_settings/` 拷贝到内部存储 `/data/data/com.fengli.onelife/files/settings/`，供 SettingsManager 读写
+- 关键设置：`customServerAddress.ini`、`customServerPort.ini`、`serverPassword.ini`
+
+### 6. 网络与协议
+
+- 复用 `minorGems/network/linux/` 下的 POSIX TCP 实现，Android NDK 完全兼容
+- `AndroidManifest.xml` 声明 `<uses-permission android:name="android.permission.INTERNET" />`
+- 协议格式（`protocol.txt`）和客户端协议层无任何改动
+- 通过 GameBackend 接口接入，方便未来切换实现
+
+## 实施阶段总览
+
+| 阶段 | 目标 | 关键产物 | 估时 |
+|---|---|---|---|
+| P0 | 环境与骨架 | NDK 验证、最简 NativeActivity APK 跑通 | 3 天 |
+| P1 | minorGems Android 平台层 | 图形/音频/文件 I/O 完成，加载并渲染一张 sprite | 1 周 |
+| P2 | 客户端集成 | gameSource 在 Android 编译并启动到主菜单 | 5 天 |
+| P3 | 触摸输入 | 完整可玩流程，连接/移动/拾取/聊天 | 1 周 |
+| P4 | 联调 | 与 Linux 服务端联调通过，多人同步验证 | 3 天 |
+| P5 | 打磨 | 性能/电池/屏幕适配/错误处理 | 5 天 |
+| 合计 | — | — | 约 4-5 周 |
+
+详细任务分解在配套实施计划 `docs/superpowers/plans/2026-05-11-android-client-plan.md` 中给出。
+
+## 验证策略
+
+### 阶段性验证
+
+- **P0**：`adb install` APK 后看到横屏纯色窗口，logcat 无致命错误
+- **P1**：测试程序加载 sprite TGA 并显示（验证 EGL + OpenGL ES + AAsset）
+- **P2**：APK 启动到设置/主菜单页（验证 gameSource 完整编译）
+- **P3**：手动完成出生→移动→拾取→死亡的完整生命周期
+- **P4**：两台 Android + 桌面客户端在同一服务器互相可见
+
+### 回归验证
+
+- 桌面端 server 构建：`cd server && ./configure 1 && make`
+- 桌面端 client 构建：`cd gameSource && cd .. && ./configure 1 && cd gameSource && make`
+- 桌面端 GameBackend 抽象重构后行为一致（连接、游戏、断线重连）
+
+### 端到端验证示例
+
+```bash
+# 服务端
+cd /jfs/fengli16/Projects/CProjects/OneLife/server
+./OneLifeServer   # 监听 8005
+
+# Android 客户端
+adb install android/build/OneLife-debug.apk
+# 启动后填入 settings/customServerAddress.ini 等
+# 验证完整游戏流程
+```
+
+## 风险与缓解
+
+| 风险 | 缓解措施 |
+|---|---|
+| OpenGL 固定管线（glBegin/glEnd）在 GLES 不支持 | P1 阶段排查 minorGems/gameSource 是否使用固定管线，必要时替换为 VBO/Shader |
+| ANR：渲染线程阻塞主循环 | 用 `ALooper_pollAll` 超时轮询，确保事件响应 |
+| 内存：sprites 加载 OOM | 验证 4GB RAM 设备，必要时改为按需/分块加载 |
+| AAssetManager 不支持 mmap | 对大文件用流式读取，避免一次性全量读入 |
+| OpenSL ES 在 API 30+ 已 deprecated | API 29 仍支持；后续可平滑迁移到 AAudio |
+| GameBackend 重构破坏桌面端 | 重构后立即跑桌面端构建+运行回归 |
+| `minorGems` 同级仓库被污染 | 强制使用 `git worktree add` 隔离到 `android-port` 分支 |
+
+## 关键决策记录
+
+1. **选 A 不选 B**：方案 A 节省 7-11 周，保留多人功能，服务端零改动
+2. **NDK 原生 API 而非 SDL2**：避免 SDL 1.2 → 2.0 大规模迁移，APK 更小
+3. **NativeActivity 而非 Java 入口**：符合"纯命令行 + NDK"偏好
+4. **资源全部打包进 APK**：用户体验最佳，无首次下载等待
+5. **GameBackend 抽象**：增量成本约 1 天，为未来离线模式铺路
+6. **minorGems worktree 隔离**：遵循用户记忆中的同级仓库规则
+
+## 后续阶段（不在本期）
+
+- AAudio 替换 OpenSL ES（API 30+ 性能更佳）
+- 嵌入式服务端（真正的离线模式）
+- 触屏专属 UI（虚拟摇杆、动作按钮）
+- iOS 移植
+- Google Play 发布流程
