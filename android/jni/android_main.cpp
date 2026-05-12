@@ -9,6 +9,7 @@
 #include <unistd.h>
 
 #include "AssetFileBridge.h"
+#include "TouchInputAdapter.h"
 
 // minorGems Android 平台层接口（FileAndroid.cpp / gameAndroid.cpp 中定义）
 namespace minorGemsAndroid {
@@ -141,6 +142,9 @@ extern "C" void android_main(struct android_app* app) {
     AppState state{};
     app->userData = &state;
     app->onAppCmd = onAppCmd;
+    app->onInputEvent = [](struct android_app*, AInputEvent* e) -> int32_t {
+        return onelife::TouchInputAdapter::handle(e);
+    };
 
     LOGI("OneLife Android starting...");
 

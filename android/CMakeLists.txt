@@ -217,6 +217,7 @@ set(JNI_SOURCES
     jni/EGLContext.cpp
     jni/AndroidPlatform.cpp
     jni/AssetFileBridge.cpp
+    jni/TouchInputAdapter.cpp
     jni/game_stubs.cpp  # TODO(Task 2.4): 接入 gameSource 后删除
 )
 

@@ -353,20 +353,25 @@ doublePair getViewCenterPosition() {
 }
 
 // game.h - 键盘修饰键状态
+// 由 TouchInputAdapter.cpp 维护（双指 → Shift）
+extern "C" int onelifeAndroidIsShiftDown();
+extern "C" int onelifeAndroidIsRightButtonDown();
+extern "C" int onelifeAndroidLastMouseX();
+extern "C" int onelifeAndroidLastMouseY();
+
 char isShiftKeyDown() {
-    // stub: Shift 键未按下
-    return 0;
+    return onelifeAndroidIsShiftDown() ? 1 : 0;
 }
 
 char isCommandKeyDown() {
-    // stub: Command/Ctrl 键未按下
+    // Android 无物理 Ctrl/Cmd 键
     return 0;
 }
 
 // game.h - 鼠标按键状态
+// 长按后松手视为右键（在 LivingLifePage 中用于"交互"语义）
 char isLastMouseButtonRight() {
-    // stub: 最后按下的不是右键
-    return 0;
+    return onelifeAndroidIsRightButtonDown() ? 1 : 0;
 }
 
 // game.h - 剪贴板 API
@@ -792,8 +797,8 @@ void setMouseReportingMode( char inWorldCoordinates ) {
 }
 
 void getLastMouseScreenPos( int *outX, int *outY ) {
-    if( outX ) *outX = 0;
-    if( outY ) *outY = 0;
+    if( outX ) *outX = onelifeAndroidLastMouseX();
+    if( outY ) *outY = onelifeAndroidLastMouseY();
 }
 
 // game.h - 音频控制
