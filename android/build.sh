@@ -9,8 +9,16 @@ cd "$SCRIPT_DIR"
 source ./config.sh
 
 BUILD_TYPE="${1:-debug}"
-BUILD_DIR="$SCRIPT_DIR/build/$BUILD_TYPE"
+# 构建目录优先级：
+#   1. 显式环境变量 ANDROID_BUILD_DIR（可能由 config.sh 自动设为 /data1/ 下的路径）
+#   2. 默认回退到 $SCRIPT_DIR/build/$BUILD_TYPE
+if [[ -n "${ANDROID_BUILD_DIR:-}" ]]; then
+    BUILD_DIR="$ANDROID_BUILD_DIR/$BUILD_TYPE"
+else
+    BUILD_DIR="$SCRIPT_DIR/build/$BUILD_TYPE"
+fi
 OUT_APK="$SCRIPT_DIR/build/OneLife-$BUILD_TYPE.apk"
+mkdir -p "$SCRIPT_DIR/build"  # 确保 OUT_APK 所在目录存在
 
 mkdir -p "$BUILD_DIR"
 

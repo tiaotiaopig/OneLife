@@ -27,6 +27,15 @@ export ANDROID_API_LEVEL=29
 export ANDROID_ABIS="arm64-v8a armeabi-v7a x86_64"  # build.sh 会遍历此列表编译多 ABI（x86_64 用于模拟器）
 export ANDROID_BUILD_TOOLS_VERSION=33.0.2
 
+# 构建目录：优先用本地硬盘 /data1/（避免 JuiceFS 小文件 I/O 瓶颈，aapt 打包加速 ~15-20x）
+# 可通过 ANDROID_BUILD_DIR 环境变量强制覆盖
+if [[ -z "${ANDROID_BUILD_DIR:-}" ]]; then
+    if [[ -d "/data1" && -w "/data1" ]]; then
+        export ANDROID_BUILD_DIR="/data1/build/OneLife-android/$(basename "$SCRIPT_DIR")-${USER:-root}"
+    fi
+    # 否则留空，build.sh 会 fallback 到 $SCRIPT_DIR/build/$BUILD_TYPE
+fi
+
 export AAPT="${ANDROID_SDK_ROOT}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}/aapt"
 export APKSIGNER="${ANDROID_SDK_ROOT}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}/apksigner"
 export ZIPALIGN="${ANDROID_SDK_ROOT}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}/zipalign"
