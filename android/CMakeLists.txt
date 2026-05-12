@@ -101,7 +101,7 @@ set(GAMESOURCE_BATCH_2
     ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/soundBank.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/animationBank.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/ogg.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/musicPlayer.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/musicPlayer2.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/convolution.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/fft.cpp
 )
@@ -162,6 +162,37 @@ set(GAMESOURCE_BATCH_4A
     ${CMAKE_CURRENT_SOURCE_DIR}/../commonSource/fractalNoise.cpp
 )
 
+# gameSource 批 4b：各种具体 Page 类（Task 2.3d-b）
+# 包含：LoadingPage / TestPage / FinalMessagePage / ExtendedMessagePage /
+#       GeneticHistoryPage / GamePage / TwinPage / PollPage /
+#       RebirthChoicePage / ReviewPage / SettingsPage / ServicesPage /
+#       ExistingAccountPage / ServerActionPage / AutoUpdatePage
+# 排除：AHAPResultPage / AHAPSettingsPage（AHAP 变体，永不接入）
+#       LivingLifePage（体量巨大，单独批次）
+# 新增 minorGems：diffBundleClient.cpp（AutoUpdatePage 需要）
+# 新增 stubs：musicLoudness / targetFramesPerSecond / userTwinCode / userTwinCount /
+#             mainFontReview / userID / gamePlayingBack / loginEditOverride /
+#             relaunchGame / setClipboardText（见 game_stubs.cpp）
+set(GAMESOURCE_BATCH_4B
+    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/LoadingPage.cpp
+    # TestPage.cpp 排除：TestPage.h 不存在（测试/调试页面，不完整）
+    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/FinalMessagePage.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/ExtendedMessagePage.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/GeneticHistoryPage.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/GamePage.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/TwinPage.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/PollPage.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/RebirthChoicePage.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/ReviewPage.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/SettingsPage.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/ServicesPage.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/ExistingAccountPage.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/ServerActionPage.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/AutoUpdatePage.cpp
+    # minorGems 依赖（AutoUpdatePage 需要）
+    ${MINORGEMS_ROOT}/game/diffBundle/client/diffBundleClient.cpp
+)
+
 # OneLife Android JNI 模块（Phase 1 创建的模块）
 set(JNI_SOURCES
     jni/EGLContext.cpp
@@ -191,6 +222,7 @@ add_library(onelife SHARED
     ${GAMESOURCE_BATCH_2}
     ${GAMESOURCE_BATCH_3}
     ${GAMESOURCE_BATCH_4A}
+    ${GAMESOURCE_BATCH_4B}
 )
 
 target_include_directories(onelife PRIVATE

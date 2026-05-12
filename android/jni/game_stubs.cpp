@@ -175,13 +175,8 @@ int16_t* stopRecording16BitMonoSound(int *outNumSamples) {
 }
 
 // musicPlayer.h - 音乐抑制 API
-void addMusicSuppression(const char *inTag) {
-    // stub: 添加音乐抑制标签
-}
-
-void removeMusicSuppression(const char *inTag) {
-    // stub: 移除音乐抑制标签
-}
+// 注：addMusicSuppression / removeMusicSuppression 已在 musicPlayer2.cpp 中实现，
+//     切换到 musicPlayer2.cpp 后此处不再需要桩定义
 
 // gameGraphics.h - 更多绘制函数
 void toggleInvertedBlend(char inInverted) {
@@ -240,6 +235,21 @@ SpriteHandle fillSprite(Image *inImage, char inTransparentLowerLeftCorner) {
 int startAsyncFileRead(const char *inPath) {
     // stub: 开始异步文件读取（返回假句柄）
     return 1;
+}
+
+// game.h - 检查异步文件读取是否完成（musicPlayer2 / soundBank 调用）
+char checkAsyncFileReadDone( int inHandle ) {
+    // stub: 返回完成（无实际异步读取）
+    (void)inHandle;
+    return 1;
+}
+
+// game.h - 获取异步文件数据（musicPlayer2 / soundBank 调用）
+unsigned char *getAsyncFileData( int inHandle, int *outDataLength ) {
+    // stub: 返回空（无实际数据）
+    (void)inHandle;
+    if( outDataLength ) *outDataLength = 0;
+    return nullptr;
 }
 
 // ============================================================================
@@ -461,3 +471,121 @@ char *serverIP = nullptr;
 void LivingLifePage::sendToServerSocket( char *inMessage ) {
     // stub: 无操作（网络未接入时忽略）
 }
+
+// ============================================================================
+// 批 4b stubs：Page 类需要的全局变量和函数（game.cpp 定义，Android 暂用桩）
+// ============================================================================
+
+// SettingsPage.cpp 引用
+float musicLoudness = 1.0f;
+int targetFramesPerSecond = 60;
+
+// TwinPage.cpp 引用
+char *userTwinCode = nullptr;
+int userTwinCount = 0;
+
+// ReviewPage.cpp 引用
+Font *mainFontReview = nullptr;
+
+// ServerActionPage.cpp 引用（serverSequenceNumber 已在批 1 stubs 中定义）
+int userID = -1;
+
+// ExistingAccountPage.cpp 引用
+char gamePlayingBack = false;
+char loginEditOverride = false;
+
+// game.h 声明（gameSDL.cpp 实现，Android 暂用桩）
+
+// 剪贴板写入（ServicesPage / ExistingAccountPage 调用）
+void setClipboardText( const char *inText ) {
+    // stub: Android 暂不支持剪贴板写入
+    (void)inText;
+}
+
+// 重启游戏（AutoUpdatePage 调用）
+char relaunchGame() {
+    // stub: Android 不支持自动重启
+    return 0;
+}
+
+// ============================================================================
+// 批 4b stubs（续）：game.h / musicPlayer.h 函数（gameSDL.cpp 实现，Android 暂用桩）
+// ============================================================================
+
+// game.h - 硬退出模式（RebirthChoicePage / GeneticHistoryPage 调用）
+char isHardToQuitMode() {
+    // stub: 非硬退出模式
+    return 0;
+}
+
+// game.h - 打开 URL（GeneticHistoryPage / ExistingAccountPage 调用）
+void launchURL( char *inURL ) {
+    // stub: Android 暂不支持打开 URL
+    (void)inURL;
+}
+
+// game.h - 是否支持打开 URL
+char isURLLaunchSupported() {
+    // stub: 暂不支持
+    return 0;
+}
+
+// game.h - VSync 状态（SettingsPage 调用）
+char getCountingOnVsync() {
+    // stub: 不使用 VSync 计数
+    return 0;
+}
+
+// game.h - 最近帧率（SettingsPage 调用）
+double getRecentFrameRate() {
+    // stub: 返回目标帧率
+    return 60.0;
+}
+
+// game.h - 光标模式（SettingsPage 调用，Android 无鼠标光标）
+void setCursorMode( int inMode ) {
+    // stub: 无操作
+    (void)inMode;
+}
+
+int getCursorMode() {
+    // stub: 返回默认模式 0
+    return 0;
+}
+
+void setEmulatedCursorScale( double inScale ) {
+    // stub: 无操作
+    (void)inScale;
+}
+
+double getEmulatedCursorScale() {
+    // stub: 返回默认缩放 1.0
+    return 1.0;
+}
+
+// game.h - 音效总音量（SettingsPage 调用）
+void setSoundLoudness( float inLoudness ) {
+    // stub: 无操作
+    (void)inLoudness;
+}
+
+// game.h - 恢复音效播放（SettingsPage 调用）
+void resumePlayingSoundSprites() {
+    // stub: 无操作
+}
+
+// game.h - 获取 web 请求进度大小（game.h 声明）
+int getWebProgressSize( int inHandle ) {
+    // stub: 返回 0
+    (void)inHandle;
+    return 0;
+}
+
+// musicPlayer.h - 步进音乐播放器（SettingsPage 调用）
+// 注：stepMusicPlayer 已在 musicPlayer.cpp 中实现，此处不重复定义
+
+// game.cpp 全局变量（ExistingAccountPage / RebirthChoicePage 引用）
+// 注：instructionsSprite 在 game.cpp 中定义为 SpriteHandle，此处提供桩定义
+// 使用 gameGraphics.h 中的 SpriteHandle 类型（typedef void*）
+#include "minorGems/game/gameGraphics.h"
+SpriteHandle instructionsSprite = nullptr;
