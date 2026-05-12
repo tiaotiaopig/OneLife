@@ -13,6 +13,13 @@ typedef uint8_t Uint8;
 #define LOG_TAG "OneLifeStub"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
 
+// gameSource 批 1 引用的全局变量（正常由 game.cpp 定义）
+// 接入完整 game.cpp 后这些定义会从 game.cpp 提供，此处的定义需移除
+int dataVersionNumber = 0;
+char *accountKey = nullptr;
+int serverSequenceNumber = 0;
+int accountHmacVersionNumber = 0;
+
 extern "C" {
 
 // 音频采样率（CD 质量立体声）

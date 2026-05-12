@@ -52,6 +52,31 @@ set(MINORGEMS_SYS
     ${MINORGEMS_ROOT}/system/unix/TimeUnix.cpp
 )
 
+# minorGems 扩展工具（gameSource 批 1 需要）
+set(MINORGEMS_EXT
+    ${MINORGEMS_ROOT}/util/StringTree.cpp
+    ${MINORGEMS_ROOT}/util/SettingsManager.cpp
+    ${MINORGEMS_ROOT}/formats/encodingUtils.cpp
+    ${MINORGEMS_ROOT}/util/crc32.cpp
+    ${MINORGEMS_ROOT}/crypto/hashes/sha1.cpp
+    ${MINORGEMS_ROOT}/io/file/linux/PathLinux.cpp
+    ${MINORGEMS_ROOT}/io/file/unix/DirectoryUnix.cpp
+)
+
+# gameSource 批 1：叶子数据结构（Task 2.3a）
+# 只包含不依赖其他 gameSource .cpp 的文件（或仅依赖本批内文件）
+# 排除：objectBank/transitionBank/spriteBank/soundBank/animationBank（批 2/3 处理）
+set(GAMESOURCE_BATCH_1
+    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/GridPos.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/folderCache.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/binFolderCache.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/settingsToggle.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/ageControl.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/categoryBank.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/SoundUsage.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/accountHmac.cpp
+)
+
 # OneLife Android JNI 模块（Phase 1 创建的模块）
 set(JNI_SOURCES
     jni/EGLContext.cpp
@@ -75,6 +100,8 @@ add_library(onelife SHARED
     ${MINORGEMS_NETWORK}
     ${MINORGEMS_UTIL}
     ${MINORGEMS_SYS}
+    ${MINORGEMS_EXT}
+    ${GAMESOURCE_BATCH_1}
 )
 
 target_include_directories(onelife PRIVATE
@@ -83,6 +110,8 @@ target_include_directories(onelife PRIVATE
     ${MINORGEMS_ROOT}
     # "minorGems/xxx.h" 形式的 include 通过此 staging 目录解析
     ${MINORGEMS_INCLUDE_STAGING}
+    # gameSource 头文件（批 1 文件的 #include "xxx.h" 能找到）
+    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource
 )
 
 target_link_libraries(onelife
