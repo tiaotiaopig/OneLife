@@ -125,12 +125,13 @@ if grep -q "eglSwapBuffers failed" "$RUN_LOG"; then
 fi
 echo "无 EGL 错误"
 
-# 6d) 渲染循环存活：drawFrame 日志递增
-DRAW_COUNT=$(grep -c "drawFrame #" "$RUN_LOG" || true)
+# 6d) 渲染循环存活：tickGame 日志递增
+#     （Task 2.4 起 android_main 的主循环改名为 tickGame，调 platformTick）
+DRAW_COUNT=$(grep -cE "tickGame #|drawFrame #" "$RUN_LOG" || true)
 if [ "$DRAW_COUNT" -lt 2 ]; then
-    fail "渲染循环未启动（drawFrame 日志数=$DRAW_COUNT，期望>=2）"
+    fail "渲染循环未启动（tick 日志数=$DRAW_COUNT，期望>=2）"
 fi
-echo "渲染循环正常，drawFrame 事件 $DRAW_COUNT 次"
+echo "渲染循环正常，tick 事件 $DRAW_COUNT 次"
 
 # 6e) EGL 初始化成功
 if ! grep -q "EGL ready:" "$RUN_LOG"; then

@@ -1,6 +1,6 @@
-// OneLife Android 入口（Phase 0 占位版本）
-// 仅初始化 EGL 并清屏为绿色，验证 NativeActivity 工具链是否打通。
-// 真正的游戏入口在 Phase 1 之后接入。
+// OneLife Android 入口（Task 2.4：接入 gameSource 主循环）
+// EGL 就绪后调用 minorGemsAndroid::platformInit 启动 gameSource，
+// 每帧调用 platformTick（内部 drawFrame），销毁时 platformShutdown。
 
 #include <android_native_app_glue.h>
 #include <EGL/egl.h>
@@ -10,10 +10,13 @@
 
 #include "AssetFileBridge.h"
 
-// FileAndroid.cpp 中定义的全局注入函数
+// minorGems Android 平台层接口（FileAndroid.cpp / gameAndroid.cpp 中定义）
 namespace minorGemsAndroid {
     void setAssetManager(AAssetManager* mgr);
     void setInternalDataPath(const char* path);
+    void platformInit(int width, int height, int targetFrameRate);
+    void platformTick();
+    void platformShutdown();
 }
 
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO,  "OneLife", __VA_ARGS__)
@@ -23,8 +26,9 @@ struct AppState {
     EGLDisplay display = EGL_NO_DISPLAY;
     EGLContext context = EGL_NO_CONTEXT;
     EGLSurface surface = EGL_NO_SURFACE;
-    int width = 0;
-    int height = 0;
+    int  width  = 0;
+    int  height = 0;
+    bool platformInitialized = false;  // gameSource 是否已启动
 };
 
 static int initEGL(struct android_app* app, AppState* s) {
@@ -67,22 +71,31 @@ static void termEGL(AppState* s) {
     *s = AppState{};
 }
 
-static void drawFrame(AppState* s) {
+// 每帧调用：把控制权交给 gameSource 的 drawFrame，再 swapBuffers。
+// 不再 glClearColor —— gameSource 内部会清屏并渲染。
+static void tickGame(AppState* s) {
     if (s->display == EGL_NO_DISPLAY) return;
     static int frameCount = 0;
     frameCount++;
-    // 仅在前几帧和每 5 秒（300 帧 @ 60fps）打日志，确认渲染循环存活
     if (frameCount <= 3 || frameCount % 300 == 0) {
-        LOGI("drawFrame #%d (%dx%d)", frameCount, s->width, s->height);
+        LOGI("tickGame #%d (%dx%d)", frameCount, s->width, s->height);
     }
     glViewport(0, 0, s->width, s->height);
-    glClearColor(0.23f, 0.49f, 0.23f, 1.0f);  // OneLife 绿
-    glClear(GL_COLOR_BUFFER_BIT);
+    minorGemsAndroid::platformTick();
     EGLBoolean ok = eglSwapBuffers(s->display, s->surface);
     if (!ok) {
         EGLint err = eglGetError();
         LOGE("eglSwapBuffers failed, err=0x%x", err);
     }
+}
+
+// EGL 就绪但 gameSource 尚未启动时的占位渲染（理论上不会触发，仅兜底）
+static void drawFrameFallback(AppState* s) {
+    if (s->display == EGL_NO_DISPLAY) return;
+    glViewport(0, 0, s->width, s->height);
+    glClearColor(0.23f, 0.49f, 0.23f, 1.0f);  // OneLife 绿
+    glClear(GL_COLOR_BUFFER_BIT);
+    eglSwapBuffers(s->display, s->surface);
 }
 
 static void onAppCmd(struct android_app* app, int32_t cmd) {
@@ -98,22 +111,36 @@ static void onAppCmd(struct android_app* app, int32_t cmd) {
                     if (app->activity->internalDataPath) {
                         chdir(app->activity->internalDataPath);
                     }
-                    // 首次启动复制默认设置
+                    // 首次启动复制默认设置（settings/*.ini）
                     onelife::AssetFileBridge::copyDefaultSettings();
                 }
-                initEGL(app, s);
+                if (initEGL(app, s) == 0 && !s->platformInitialized) {
+                    LOGI("Starting gameSource via platformInit(%dx%d @60fps)",
+                         s->width, s->height);
+                    minorGemsAndroid::platformInit(s->width, s->height, 60);
+                    s->platformInitialized = true;
+                    LOGI("gameSource platformInit returned");
+                }
             }
             break;
-        case APP_CMD_TERM_WINDOW:    termEGL(s); break;
-        case APP_CMD_DESTROY:        termEGL(s); break;
-        default: break;
+        case APP_CMD_TERM_WINDOW:
+        case APP_CMD_DESTROY:
+            if (s->platformInitialized) {
+                LOGI("Shutting down gameSource");
+                minorGemsAndroid::platformShutdown();
+                s->platformInitialized = false;
+            }
+            termEGL(s);
+            break;
+        default:
+            break;
     }
 }
 
 extern "C" void android_main(struct android_app* app) {
     AppState state{};
-    app->userData     = &state;
-    app->onAppCmd     = onAppCmd;
+    app->userData = &state;
+    app->onAppCmd = onAppCmd;
 
     LOGI("OneLife Android starting...");
 
@@ -124,11 +151,20 @@ extern "C" void android_main(struct android_app* app) {
                                nullptr, &events, (void**)&source) >= 0) {
             if (source) source->process(app, source);
             if (app->destroyRequested) {
+                if (state.platformInitialized) {
+                    minorGemsAndroid::platformShutdown();
+                    state.platformInitialized = false;
+                }
                 termEGL(&state);
                 LOGI("OneLife Android exiting");
                 return;
             }
         }
-        drawFrame(&state);
+        if (state.platformInitialized) {
+            tickGame(&state);
+        } else if (state.display != EGL_NO_DISPLAY) {
+            // EGL 就绪但 platform 还没初始化 —— 兜底清屏
+            drawFrameFallback(&state);
+        }
     }
 }
