@@ -60,10 +60,20 @@ static void termEGL(AppState* s) {
 
 static void drawFrame(AppState* s) {
     if (s->display == EGL_NO_DISPLAY) return;
+    static int frameCount = 0;
+    frameCount++;
+    // 仅在前几帧和每 5 秒（300 帧 @ 60fps）打日志，确认渲染循环存活
+    if (frameCount <= 3 || frameCount % 300 == 0) {
+        LOGI("drawFrame #%d (%dx%d)", frameCount, s->width, s->height);
+    }
     glViewport(0, 0, s->width, s->height);
     glClearColor(0.23f, 0.49f, 0.23f, 1.0f);  // OneLife 绿
     glClear(GL_COLOR_BUFFER_BIT);
-    eglSwapBuffers(s->display, s->surface);
+    EGLBoolean ok = eglSwapBuffers(s->display, s->surface);
+    if (!ok) {
+        EGLint err = eglGetError();
+        LOGE("eglSwapBuffers failed, err=0x%x", err);
+    }
 }
 
 static void onAppCmd(struct android_app* app, int32_t cmd) {

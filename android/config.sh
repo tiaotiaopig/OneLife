@@ -8,7 +8,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
 # 优先级：环境变量 → 项目同级 → /root 默认路径
-if [[ -z "$ANDROID_NDK_ROOT" ]]; then
+if [[ -z "${ANDROID_NDK_ROOT:-}" ]]; then
     if [[ -d "${PROJECT_ROOT}/../android-tools/android-ndk-r25c" ]]; then
         export ANDROID_NDK_ROOT="${PROJECT_ROOT}/../android-tools/android-ndk-r25c"
     else
@@ -16,7 +16,7 @@ if [[ -z "$ANDROID_NDK_ROOT" ]]; then
     fi
 fi
 
-if [[ -z "$ANDROID_SDK_ROOT" ]]; then
+if [[ -z "${ANDROID_SDK_ROOT:-}" ]]; then
     if [[ -d "${PROJECT_ROOT}/../android-tools/android-sdk" ]]; then
         export ANDROID_SDK_ROOT="${PROJECT_ROOT}/../android-tools/android-sdk"
     else
@@ -24,7 +24,7 @@ if [[ -z "$ANDROID_SDK_ROOT" ]]; then
     fi
 fi
 export ANDROID_API_LEVEL=29
-export ANDROID_ABIS="arm64-v8a armeabi-v7a"  # build.sh 会遍历此列表编译多 ABI
+export ANDROID_ABIS="arm64-v8a armeabi-v7a x86_64"  # build.sh 会遍历此列表编译多 ABI（x86_64 用于模拟器）
 export ANDROID_BUILD_TOOLS_VERSION=33.0.2
 
 export AAPT="${ANDROID_SDK_ROOT}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}/aapt"
