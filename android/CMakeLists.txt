@@ -63,6 +63,15 @@ set(MINORGEMS_EXT
     ${MINORGEMS_ROOT}/io/file/unix/DirectoryUnix.cpp
 )
 
+# minorGems 图形/音频工具（gameSource 批 2 需要）
+# TGAImageConverter/Image/RGBAImage 都是 header-only
+# gameGraphics/drawUtils 的实现在 gameAndroid.cpp 中（OpenGL ES 1.x）
+set(MINORGEMS_GRAPHICS
+    ${MINORGEMS_ROOT}/game/doublePair.cpp
+    ${MINORGEMS_ROOT}/sound/formats/aiff.cpp
+    ${MINORGEMS_ROOT}/util/StringBufferOutputStream.cpp
+)
+
 # gameSource 批 1：叶子数据结构（Task 2.3a）
 # 只包含不依赖其他 gameSource .cpp 的文件（或仅依赖本批内文件）
 # 排除：objectBank/transitionBank/spriteBank/soundBank/animationBank（批 2/3 处理）
@@ -75,6 +84,22 @@ set(GAMESOURCE_BATCH_1
     ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/categoryBank.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/SoundUsage.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/accountHmac.cpp
+)
+
+# gameSource 批 2：核心 bank 类（Task 2.3b）
+# 包含：objectBank / transitionBank / spriteBank / soundBank / animationBank
+# 以及它们的依赖：objectMetadata / ogg / musicPlayer / convolution / fft
+set(GAMESOURCE_BATCH_2
+    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/objectMetadata.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/objectBank.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/transitionBank.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/spriteBank.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/soundBank.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/animationBank.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/ogg.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/musicPlayer.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/convolution.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/fft.cpp
 )
 
 # OneLife Android JNI 模块（Phase 1 创建的模块）
@@ -101,7 +126,9 @@ add_library(onelife SHARED
     ${MINORGEMS_UTIL}
     ${MINORGEMS_SYS}
     ${MINORGEMS_EXT}
+    ${MINORGEMS_GRAPHICS}
     ${GAMESOURCE_BATCH_1}
+    ${GAMESOURCE_BATCH_2}
 )
 
 target_include_directories(onelife PRIVATE
