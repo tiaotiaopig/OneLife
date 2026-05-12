@@ -193,6 +193,24 @@ set(GAMESOURCE_BATCH_4B
     ${MINORGEMS_ROOT}/game/diffBundle/client/diffBundleClient.cpp
 )
 
+# gameSource 批 4c：核心游戏循环（Task 2.3d-c）
+# 包含：LivingLifePage / game.cpp / rocketAnimation
+# 排除：inPlaceTipsWorking（代码片段，非独立编译单元）
+# 新增依赖：importer / exporter / AHAPResultPage / AHAPSettingsPage（game.cpp 引用）
+#           sayLimit（LivingLifePage 引用）
+set(GAMESOURCE_BATCH_4C
+    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/LivingLifePage.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/game.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/rocketAnimation.cpp
+    # game.cpp 依赖
+    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/importer.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/exporter.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/AHAPResultPage.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/AHAPSettingsPage.cpp
+    # LivingLifePage 依赖
+    ${CMAKE_CURRENT_SOURCE_DIR}/../commonSource/sayLimit.cpp
+)
+
 # OneLife Android JNI 模块（Phase 1 创建的模块）
 set(JNI_SOURCES
     jni/EGLContext.cpp
@@ -223,6 +241,7 @@ add_library(onelife SHARED
     ${GAMESOURCE_BATCH_3}
     ${GAMESOURCE_BATCH_4A}
     ${GAMESOURCE_BATCH_4B}
+    ${GAMESOURCE_BATCH_4C}
 )
 
 target_include_directories(onelife PRIVATE

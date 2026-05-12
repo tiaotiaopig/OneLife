@@ -17,45 +17,9 @@ typedef uint8_t Uint8;
 #define LOG_TAG "OneLifeStub"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
 
-// gameSource 批 1 引用的全局变量（正常由 game.cpp 定义）
-// 接入完整 game.cpp 后这些定义会从 game.cpp 提供，此处的定义需移除
-int dataVersionNumber = 0;
-char *accountKey = nullptr;
-int serverSequenceNumber = 0;
-int accountHmacVersionNumber = 0;
+// 批 1 全局变量已由 game.cpp 提供（批 4c 接入后移除）
 
-// game.h 声明这些函数为 C++ 链接（无 extern "C"）
-// gameAndroid.cpp 用 extern "C" 前向声明它们，但定义必须与 game.h 一致
-
-// 字符串绘制初始化
-void initDrawString(int inWidth, int inHeight) {
-    LOGI("stub initDrawString %dx%d", inWidth, inHeight);
-}
-
-// 字符串绘制清理
-void freeDrawString() {
-    LOGI("stub freeDrawString");
-}
-
-// 帧绘制初始化
-void initFrameDrawer(int inWidth, int inHeight, int inTargetFrameRate,
-                     const char* inCustomRecordedGameData,
-                     char inPlayingBack) {
-    LOGI("stub initFrameDrawer %dx%d @%dfps", inWidth, inHeight, inTargetFrameRate);
-}
-
-// 帧绘制清理
-void freeFrameDrawer() {
-    LOGI("stub freeFrameDrawer");
-}
-
-// 每帧绘制
-void drawFrame(char inUpdate) {
-    // 桩：什么都不做，由 android_main 中的 EGL 清屏代替
-    (void)inUpdate;
-}
-
-// 音频采样率（CD 质量立体声）
+// game.h - 音频采样率（CD 质量立体声）
 // 注：getSoundSamples 由 gameSource/musicPlayer.cpp 提供，无需在此定义
 int getSampleRate() {
     return 44100;
@@ -212,9 +176,6 @@ void unlockAudio() {
     // stub: 解锁音频线程
 }
 
-// musicPlayer.cpp 需要的全局变量
-double musicHeadroom = 1.0;
-
 // gameGraphics.h - setDrawColor 重载（FloatColor 已在 gameGraphics.h 中定义）
 void setDrawColor(FloatColor inColor) {
     setDrawColor(inColor.r, inColor.g, inColor.b, inColor.a);
@@ -255,11 +216,6 @@ unsigned char *getAsyncFileData( int inHandle, int *outDataLength ) {
 // ============================================================================
 // 批 3 stubs：UI 框架（gameSource 批 3 需要）
 // ============================================================================
-
-// game.cpp 中定义的全局变量（批 3 UI 文件通过 extern 引用）
-double frameRateFactor = 1.0;
-Font *mainFont = nullptr;
-Font *smallFont = nullptr;
 
 // gameGraphics.h - 绘制四边形/三角形
 void drawQuads(int inNumQuads, double inVertices[]) {
@@ -378,14 +334,6 @@ void clearWebRequest( int inHandle ) {
 #include "minorGems/graphics/Image.h"
 #include "minorGems/graphics/RawRGBAImage.h"
 
-// game.cpp 全局变量
-char isAHAP = false;
-char *userEmail = nullptr;
-int webRetrySeconds = 5;
-char *shutdownMessage = nullptr;
-double visibleViewWidth = 1024.0;
-double viewHeight = 768.0;
-
 // game.h 声明的函数（gameSDL.cpp 实现，Android 暂用桩）
 
 // 翻译函数：直接返回 key（无翻译表时原样显示）
@@ -435,9 +383,6 @@ RawRGBAImage *readTGAFileRaw( const char *inTGAFileName ) {
     return nullptr;
 }
 
-// Font 全局变量（批 4a 文件引用）
-Font *numbersFontFixed = nullptr;
-
 // ============================================================================
 // 批 4a stubs：gameGraphics.h 函数（gameSDL.cpp 实现，Android 暂用桩）
 // ============================================================================
@@ -458,41 +403,8 @@ void getScreenDimensions( int *outWidth, int *outHeight ) {
 }
 
 // ============================================================================
-// 批 4a stubs：game.cpp 全局变量（photos.cpp 引用）
-// ============================================================================
-
-char *serverIP = nullptr;
-
-// ============================================================================
-// 批 4a stubs：LivingLifePage 方法（liveAnimationTriggers.cpp 调用）
-// 接入 LivingLifePage.cpp 后这些定义需移除
-// ============================================================================
-
-void LivingLifePage::sendToServerSocket( char *inMessage ) {
-    // stub: 无操作（网络未接入时忽略）
-}
-
-// ============================================================================
 // 批 4b stubs：Page 类需要的全局变量和函数（game.cpp 定义，Android 暂用桩）
 // ============================================================================
-
-// SettingsPage.cpp 引用
-float musicLoudness = 1.0f;
-int targetFramesPerSecond = 60;
-
-// TwinPage.cpp 引用
-char *userTwinCode = nullptr;
-int userTwinCount = 0;
-
-// ReviewPage.cpp 引用
-Font *mainFontReview = nullptr;
-
-// ServerActionPage.cpp 引用（serverSequenceNumber 已在批 1 stubs 中定义）
-int userID = -1;
-
-// ExistingAccountPage.cpp 引用
-char gamePlayingBack = false;
-char loginEditOverride = false;
 
 // game.h 声明（gameSDL.cpp 实现，Android 暂用桩）
 
@@ -585,7 +497,249 @@ int getWebProgressSize( int inHandle ) {
 // 注：stepMusicPlayer 已在 musicPlayer.cpp 中实现，此处不重复定义
 
 // game.cpp 全局变量（ExistingAccountPage / RebirthChoicePage 引用）
-// 注：instructionsSprite 在 game.cpp 中定义为 SpriteHandle，此处提供桩定义
-// 使用 gameGraphics.h 中的 SpriteHandle 类型（typedef void*）
-#include "minorGems/game/gameGraphics.h"
-SpriteHandle instructionsSprite = nullptr;
+// instructionsSprite 由 game.cpp 提供（批 4c 接入后移除此注释）
+
+// ============================================================================
+// 批 4c stubs：LivingLifePage / game.cpp 引用的 gameGraphics.h / game.h 函数
+// gameSDL.cpp 实现，Android 暂用桩
+// ============================================================================
+
+// gameGraphics.h - 颜色查询
+FloatColor getDrawColor() {
+    FloatColor c = { 1.0f, 1.0f, 1.0f, 1.0f };
+    return c;
+}
+
+FloatColor getFloatColor( const char *inHexString ) {
+    FloatColor c = { 1.0f, 1.0f, 1.0f, 1.0f };
+    (void)inHexString;
+    return c;
+}
+
+// gameGraphics.h - 灰度绘制切换
+void toggleGrayscaleDrawing( char inGrayscale, float inGrayscaleFraction,
+                              int inGrayscaleMode ) {
+    (void)inGrayscale; (void)inGrayscaleFraction; (void)inGrayscaleMode;
+}
+
+// gameGraphics.h - sprite 尺寸查询
+int getSpriteWidth( SpriteHandle inSprite ) {
+    (void)inSprite;
+    return 0;
+}
+
+int getSpriteHeight( SpriteHandle inSprite ) {
+    (void)inSprite;
+    return 0;
+}
+
+// gameGraphics.h - sprite 像素计数
+void startCountingSpritePixelsDrawn() {}
+double endCountingSpritePixelsDrawn() { return 0.0; }
+void startCountingSpritesDrawn() {}
+double endCountingSpritesDrawn() { return 0.0; }
+
+// gameGraphics.h - drawSprite 带角点颜色
+void drawSprite( SpriteHandle inSprite, doublePair inCornerPos[4],
+                 FloatColor inCornerColors[4] ) {
+    (void)inSprite; (void)inCornerPos; (void)inCornerColors;
+}
+
+// gameGraphics.h - 方差切换（sound sprite）
+void toggleVariance( SoundSpriteHandle inHandle, char inNoVariance ) {
+    (void)inHandle; (void)inNoVariance;
+}
+
+// game.h - 截图
+void saveScreenShot( const char *inPrefix, Image **outImage ) {
+    (void)inPrefix;
+    if( outImage ) *outImage = nullptr;
+}
+
+// game.h - 退出游戏
+void quitGame() {
+    // stub: Android 不支持直接退出，忽略
+}
+
+// game.h - 坐标转换（屏幕 → 世界）
+void screenToWorld( int inX, int inY, float *outX, float *outY ) {
+    if( outX ) *outX = (float)inX;
+    if( outY ) *outY = (float)inY;
+}
+
+// game.h - 音效淡出
+void fadeSoundSprites( double inFadeSeconds ) {
+    (void)inFadeSeconds;
+}
+
+// game.h - 从文件加载音效
+SoundSpriteHandle loadSoundSprite( const char *inAIFFFileName ) {
+    (void)inAIFFFileName;
+    return (void*)0x1;
+}
+
+SoundSpriteHandle loadSoundSprite( const char *inFolderName,
+                                   const char *inFileNameBase ) {
+    (void)inFolderName; (void)inFileNameBase;
+    return (void*)0x1;
+}
+
+// ============================================================================
+// 批 4c stubs：socket 函数（C++ 链接包装 gameAndroid.cpp 的 C 实现）
+// gameAndroid.cpp 用 extern "C" 定义，但 game.h 声明为 C++ 链接，
+// 此处提供 C++ 包装以解决名称修饰不匹配问题
+// ============================================================================
+
+// 前向声明 gameAndroid.cpp 中的 C 链接实现
+extern "C" {
+    int openSocketConnection_c( const char *inNumericalAddress, int inPort );
+    int sendToSocket_c( int inHandle, unsigned char *inData, int inDataLength );
+    int readFromSocket_c( int inHandle, unsigned char *inDataBuffer, int inBytesToRead );
+    void closeSocket_c( int inHandle );
+}
+
+// 实际上 gameAndroid.cpp 的函数名就是 openSocketConnection 等，
+// 只是用 extern "C" 导出，所以直接用 minorGems 的 SocketClient 重新实现
+#include "minorGems/network/SocketClient.h"
+#include "minorGems/network/Socket.h"
+#include "minorGems/network/HostAddress.h"
+#include "minorGems/util/SimpleVector.h"
+
+namespace {
+    struct SockRecord {
+        int handle;
+        Socket *sock;
+    };
+    static SimpleVector<SockRecord> sCppSocketRecords;
+    static int sCppNextHandle = 1000; // 避免与 gameAndroid.cpp 的 handle 冲突
+}
+
+int openSocketConnection( const char *inNumericalAddress, int inPort ) {
+    SockRecord r;
+    r.handle = sCppNextHandle++;
+    HostAddress addr( stringDuplicate( inNumericalAddress ), inPort );
+    char timedOut = false;
+    r.sock = SocketClient::connectToServer( &addr, 0, &timedOut );
+    if( r.sock != NULL ) {
+        sCppSocketRecords.push_back( r );
+        return r.handle;
+    }
+    return -1;
+}
+
+int sendToSocket( int inHandle, unsigned char *inData, int inDataLength ) {
+    for( int i = 0; i < sCppSocketRecords.size(); i++ ) {
+        SockRecord *r = sCppSocketRecords.getElement( i );
+        if( r->handle == inHandle ) {
+            if( r->sock->isConnected() ) {
+                int n = r->sock->send( inData, inDataLength, false, false );
+                return ( n == -2 ) ? 0 : n;
+            }
+            return -1;
+        }
+    }
+    return -1;
+}
+
+int readFromSocket( int inHandle, unsigned char *inDataBuffer, int inBytesToRead ) {
+    for( int i = 0; i < sCppSocketRecords.size(); i++ ) {
+        SockRecord *r = sCppSocketRecords.getElement( i );
+        if( r->handle == inHandle ) {
+            if( r->sock->isConnected() ) {
+                int n = r->sock->receive( inDataBuffer, inBytesToRead, 0 );
+                return ( n == -2 ) ? 0 : n;
+            }
+            return -1;
+        }
+    }
+    return -1;
+}
+
+void closeSocket( int inHandle ) {
+    for( int i = 0; i < sCppSocketRecords.size(); i++ ) {
+        SockRecord *r = sCppSocketRecords.getElement( i );
+        if( r->handle == inHandle ) {
+            delete r->sock;
+            sCppSocketRecords.deleteElement( i );
+            return;
+        }
+    }
+}
+
+// ============================================================================
+// 批 4c stubs（续）：game.h / gameGraphics.h 函数（gameSDL.cpp 实现，Android 暂用桩）
+// ============================================================================
+
+// gameGraphics.h - MipMap 控制
+void toggleMipMapMinFilter( char inMipMapFilterOn ) {
+    (void)inMipMapFilterOn;
+}
+
+void toggleMipMapGeneration( char inGenerateMipMaps ) {
+    (void)inGenerateMipMaps;
+}
+
+void toggleTransparentCropping( char inCrop ) {
+    (void)inCrop;
+}
+
+// game.h - 视图大小 / 信箱
+void setViewSize( float inSize ) {
+    (void)inSize;
+}
+
+void setLetterbox( float inVisibleWidth, float inVisibleHeight ) {
+    (void)inVisibleWidth; (void)inVisibleHeight;
+}
+
+// game.h - 光标 / 输入
+void setCursorVisible( char inIsVisible ) {
+    (void)inIsVisible;
+}
+
+void grabInput( char inGrabOn ) {
+    (void)inGrabOn;
+}
+
+void setMouseReportingMode( char inWorldCoordinates ) {
+    (void)inWorldCoordinates;
+}
+
+void getLastMouseScreenPos( int *outX, int *outY ) {
+    if( outX ) *outX = 0;
+    if( outY ) *outY = 0;
+}
+
+// game.h - 音频控制
+void setSoundPlaying( char inPlaying ) {
+    (void)inPlaying;
+}
+
+void setSoundSpriteVolumeRange( double inMin, double inMax ) {
+    (void)inMin; (void)inMax;
+}
+
+// game.h - 暂停 / 帧率
+void pauseGame() {}
+
+char isPaused() { return 0; }
+
+char isQuittingBlocked() { return 0; }
+
+void wakeUpPauseFrameRate() {}
+
+// game.h - 加载完成回调（gameSDL.cpp 实现，Android 暂用桩）
+void loadingComplete() {}
+
+// game.h - Steam 认证（非 Steam 平台返回 false）
+char runSteamGateClient() { return 0; }
+
+// ============================================================================
+// 批 4c stubs：ObjectPickable::sStack（PickableStatics.cpp 依赖 Editor*.h，不接入）
+// LivingLifePage.cpp 通过 OHOL_NON_EDITOR 宏使用 ObjectPickable，
+// 但 ObjectPickable::sStack 仍需定义
+// ============================================================================
+
+#define OHOL_NON_EDITOR 1
+#include "ObjectPickable.h"
+SimpleVector<int> ObjectPickable::sStack;
