@@ -12,6 +12,13 @@
 // 确保所有函数签名与 game.h 声明一致
 #include "LivingLifePage.h"
 
+// TGA 加载所需头文件
+#include "minorGems/io/file/File.h"
+#include "minorGems/io/file/FileInputStream.h"
+#include "minorGems/graphics/converters/TGAImageConverter.h"
+#include "minorGems/io/file/Path.h"
+#include "minorGems/util/stringUtils.h"
+
 typedef uint8_t Uint8;
 
 #define LOG_TAG "OneLifeStub"
@@ -182,9 +189,43 @@ void setDrawColor(FloatColor inColor) {
 }
 
 // gameGraphics.h - 更多 sprite 函数
+// 通过 minorGems File + 手动 TGA 解析读取（无 graphics/ 前缀）
 Image* readTGAFileBase(const char *inTGAFileName) {
-    // stub: 从主目录读取 TGA 文件
-    return nullptr;
+    File tgaFile(NULL, (char*)inTGAFileName);
+    int length = 0;
+    unsigned char *data = tgaFile.readFileContents(&length);
+    if (data == nullptr || length < 18) {
+        if (data) delete [] data;
+        return nullptr;
+    }
+    int w = data[12] | (data[13] << 8);
+    int h = data[14] | (data[15] << 8);
+    int bpp = data[16];
+    int channels = bpp / 8;
+    int pixelDataOffset = 18 + data[0];
+    if (channels < 3 || channels > 4) { delete [] data; return nullptr; }
+    if (pixelDataOffset + w * h * channels > length) { delete [] data; return nullptr; }
+
+    Image *image = new Image(w, h, channels, false);
+    double *r = image->getChannel(0);
+    double *g = image->getChannel(1);
+    double *b = image->getChannel(2);
+    double *a = (channels == 4) ? image->getChannel(3) : nullptr;
+    unsigned char *pixels = data + pixelDataOffset;
+    char topToBottom = (data[17] & 0x20) != 0;
+    for (int y = 0; y < h; y++) {
+        int srcY = topToBottom ? y : (h - 1 - y);
+        for (int x = 0; x < w; x++) {
+            int srcIdx = (srcY * w + x) * channels;
+            int dstIdx = y * w + x;
+            b[dstIdx] = pixels[srcIdx + 0] / 255.0;
+            g[dstIdx] = pixels[srcIdx + 1] / 255.0;
+            r[dstIdx] = pixels[srcIdx + 2] / 255.0;
+            if (a) a[dstIdx] = pixels[srcIdx + 3] / 255.0;
+        }
+    }
+    delete [] data;
+    return image;
 }
 
 SpriteHandle fillSprite(Image *inImage, char inTransparentLowerLeftCorner) {
@@ -243,10 +284,55 @@ SpriteHandle loadSprite(const char *inTGAFileName,
     return (void*)0x1;
 }
 
-// gameGraphics.h - 从文件读取 TGA
+// gameGraphics.h - 从文件读取 TGA（使用 graphics/ 子目录，与桌面端 gameSDL.cpp 行为一致）
+// Android 上 FileInputStream 不能直接 fopen APK assets，
+// 所以用 File::readFileContents()（有 AAsset 回退）读全部字节，再手动解析 TGA。
+// OneLife 只用非压缩 TGA（type 2），简单解析足够。
 Image* readTGAFile(const char *inTGAFileName) {
-    // stub: 从当前目录读取 TGA 文件
-    return nullptr;
+    char *pathSteps[1] = { stringDuplicate("graphics") };
+    File tgaFile(new Path(pathSteps, 1, false), (char*)inTGAFileName);
+    delete [] pathSteps[0];
+
+    int length = 0;
+    unsigned char *data = tgaFile.readFileContents(&length);
+    if (data == nullptr || length < 18) {
+        if (data) delete [] data;
+        return nullptr;
+    }
+
+    // TGA 头：18 字节固定 + 可变 id 字段
+    int w = data[12] | (data[13] << 8);
+    int h = data[14] | (data[15] << 8);
+    int bpp = data[16];
+    int channels = bpp / 8;
+    int pixelDataOffset = 18 + data[0]; // data[0] = id length
+
+    if (channels < 3 || channels > 4) { delete [] data; return nullptr; }
+    if (pixelDataOffset + w * h * channels > length) { delete [] data; return nullptr; }
+
+    Image *image = new Image(w, h, channels, false);
+    double *r = image->getChannel(0);
+    double *g = image->getChannel(1);
+    double *b = image->getChannel(2);
+    double *a = (channels == 4) ? image->getChannel(3) : nullptr;
+
+    unsigned char *pixels = data + pixelDataOffset;
+    // TGA 像素顺序是 BGRA，默认自底向上，bit 5 of descriptor (data[17]) 为 1 时自顶向下
+    char topToBottom = (data[17] & 0x20) != 0;
+    for (int y = 0; y < h; y++) {
+        int srcY = topToBottom ? y : (h - 1 - y);
+        for (int x = 0; x < w; x++) {
+            int srcIdx = (srcY * w + x) * channels;
+            int dstIdx = y * w + x;
+            b[dstIdx] = pixels[srcIdx + 0] / 255.0;
+            g[dstIdx] = pixels[srcIdx + 1] / 255.0;
+            r[dstIdx] = pixels[srcIdx + 2] / 255.0;
+            if (a) a[dstIdx] = pixels[srcIdx + 3] / 255.0;
+        }
+    }
+
+    delete [] data;
+    return image;
 }
 
 // gameGraphics.h - 获取当前绘制透明度
