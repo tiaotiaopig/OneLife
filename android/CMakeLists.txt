@@ -65,9 +65,11 @@ set(MINORGEMS_EXT
 
 # minorGems 图形/音频工具（gameSource 批 2 需要）
 # TGAImageConverter/Image/RGBAImage 都是 header-only
-# gameGraphics/drawUtils 的实现在 gameAndroid.cpp 中（OpenGL ES 1.x）
+# Font.cpp / drawUtils.cpp 在批 3（UI 框架）接入时加入
 set(MINORGEMS_GRAPHICS
     ${MINORGEMS_ROOT}/game/doublePair.cpp
+    ${MINORGEMS_ROOT}/game/Font.cpp
+    ${MINORGEMS_ROOT}/game/drawUtils.cpp
     ${MINORGEMS_ROOT}/sound/formats/aiff.cpp
     ${MINORGEMS_ROOT}/util/StringBufferOutputStream.cpp
 )
@@ -102,6 +104,32 @@ set(GAMESOURCE_BATCH_2
     ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/fft.cpp
 )
 
+# gameSource 批 3：UI 框架基础（Task 2.3c）
+# 包含：PageComponent / Button / TextField / TextArea / TextButton /
+#       SpriteButton / SpriteToggleButton / CheckboxButton /
+#       KeyEquivalentTextButton / RadioButtonSet / ValueSlider /
+#       Picker / SoundWidget / buttonStyle / spellCheck
+# 排除：GamePage（依赖 message.h/serialWebRequests.h/whiteSprites.h）
+#       LoadingPage/ExistingAccountPage 等具体 Page（依赖 message/accountHmac 等）
+#       Editor*.cpp（Android 不需要编辑器）
+set(GAMESOURCE_BATCH_3
+    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/PageComponent.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/Button.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/TextField.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/TextArea.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/TextButton.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/SpriteButton.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/SpriteToggleButton.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/CheckboxButton.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/KeyEquivalentTextButton.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/RadioButtonSet.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/ValueSlider.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/Picker.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/SoundWidget.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/buttonStyle.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/spellCheck.cpp
+)
+
 # OneLife Android JNI 模块（Phase 1 创建的模块）
 set(JNI_SOURCES
     jni/EGLContext.cpp
@@ -129,6 +157,7 @@ add_library(onelife SHARED
     ${MINORGEMS_GRAPHICS}
     ${GAMESOURCE_BATCH_1}
     ${GAMESOURCE_BATCH_2}
+    ${GAMESOURCE_BATCH_3}
 )
 
 target_include_directories(onelife PRIVATE

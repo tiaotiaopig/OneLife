@@ -8,6 +8,9 @@
 #include <stdint.h>
 #include <android/log.h>
 
+// Font 类声明（mainFont / smallFont 全局变量需要）
+#include "minorGems/game/Font.h"
+
 typedef uint8_t Uint8;
 
 #define LOG_TAG "OneLifeStub"
@@ -187,14 +190,6 @@ void toggleInvertedBlend(char inInverted) {
     // stub: 切换反色混合模式
 }
 
-void drawRect(doublePair inCenter, double inWidth, double inHeight) {
-    // stub: 绘制矩形
-}
-
-void drawSquare(doublePair inCenter, double inRadius) {
-    // stub: 绘制正方形
-}
-
 void startAddingToStencil(char inDrawColorToo, char inAdd, float inMinAlpha) {
     // stub: 开始添加到模板缓冲区
 }
@@ -227,11 +222,7 @@ void unlockAudio() {
 // musicPlayer.cpp 需要的全局变量
 double musicHeadroom = 1.0;
 
-// gameGraphics.h - setDrawColor 重载
-struct FloatColor {
-    float r, g, b, a;
-};
-
+// gameGraphics.h - setDrawColor 重载（FloatColor 已在 gameGraphics.h 中定义）
 void setDrawColor(FloatColor inColor) {
     setDrawColor(inColor.r, inColor.g, inColor.b, inColor.a);
 }
@@ -251,4 +242,90 @@ SpriteHandle fillSprite(Image *inImage, char inTransparentLowerLeftCorner) {
 void* startAsyncFileRead(const char *inPath) {
     // stub: 开始异步文件读取（返回假句柄）
     return (void*)0x1;
+}
+
+// ============================================================================
+// 批 3 stubs：UI 框架（gameSource 批 3 需要）
+// ============================================================================
+
+// game.cpp 中定义的全局变量（批 3 UI 文件通过 extern 引用）
+double frameRateFactor = 1.0;
+Font *mainFont = nullptr;
+Font *smallFont = nullptr;
+
+// gameGraphics.h - 绘制四边形/三角形
+void drawQuads(int inNumQuads, double inVertices[]) {
+    // stub: 绘制四边形（顶点数组）
+}
+
+void drawQuads(int inNumQuads, double inVertices[], float inVertexColors[]) {
+    // stub: 绘制带颜色的四边形
+}
+
+void drawTriangles(int inNumTriangles, double inVertices[],
+                   char inFill, char inSmooth) {
+    // stub: 绘制三角形
+}
+
+void drawTrianglesColor(int inNumTriangles, double inVertices[],
+                        float inVertexColors[], char inFill, char inSmooth) {
+    // stub: 绘制带颜色的三角形
+}
+
+// gameGraphics.h - 从文件加载 sprite
+SpriteHandle loadSprite(const char *inTGAFileName,
+                        char inTransparentLowerLeftCorner) {
+    // stub: 从当前目录加载 sprite（返回假句柄）
+    return (void*)0x1;
+}
+
+// gameGraphics.h - 从文件读取 TGA
+Image* readTGAFile(const char *inTGAFileName) {
+    // stub: 从当前目录读取 TGA 文件
+    return nullptr;
+}
+
+// gameGraphics.h - 获取当前绘制透明度
+float getDrawFade() {
+    // stub: 返回完全不透明
+    return 1.0f;
+}
+
+// game.h - 视图中心位置
+void setViewCenterPosition(float inX, float inY) {
+    // stub: 设置视图中心（无操作）
+}
+
+doublePair getViewCenterPosition() {
+    // stub: 返回原点
+    doublePair p = { 0.0, 0.0 };
+    return p;
+}
+
+// game.h - 键盘修饰键状态
+char isShiftKeyDown() {
+    // stub: Shift 键未按下
+    return 0;
+}
+
+char isCommandKeyDown() {
+    // stub: Command/Ctrl 键未按下
+    return 0;
+}
+
+// game.h - 鼠标按键状态
+char isLastMouseButtonRight() {
+    // stub: 最后按下的不是右键
+    return 0;
+}
+
+// game.h - 剪贴板 API
+char isClipboardSupported() {
+    // stub: Android 暂不支持剪贴板
+    return 0;
+}
+
+char* getClipboardText() {
+    // stub: 返回空字符串
+    return nullptr;
 }
