@@ -44,6 +44,7 @@ set(MINORGEMS_UTIL
     ${MINORGEMS_ROOT}/util/log/AppLog.cpp
     ${MINORGEMS_ROOT}/util/log/Log.cpp
     ${MINORGEMS_ROOT}/util/log/PrintLog.cpp
+    ${MINORGEMS_ROOT}/util/log/AndroidLog.cpp
 )
 
 # minorGems system（MutexLock 等 POSIX 实现，NetworkFunctionLocks 需要）
