@@ -8,8 +8,9 @@
 #include <stdint.h>
 #include <android/log.h>
 
-// Font 类声明（mainFont / smallFont 全局变量需要）
-#include "minorGems/game/Font.h"
+// 批 4a：提前包含 LivingLifePage.h（间接包含 game.h），
+// 确保所有函数签名与 game.h 声明一致
+#include "LivingLifePage.h"
 
 typedef uint8_t Uint8;
 
@@ -23,7 +24,8 @@ char *accountKey = nullptr;
 int serverSequenceNumber = 0;
 int accountHmacVersionNumber = 0;
 
-extern "C" {
+// game.h 声明这些函数为 C++ 链接（无 extern "C"）
+// gameAndroid.cpp 用 extern "C" 前向声明它们，但定义必须与 game.h 一致
 
 // 字符串绘制初始化
 void initDrawString(int inWidth, int inHeight) {
@@ -52,12 +54,6 @@ void drawFrame(char inUpdate) {
     // 桩：什么都不做，由 android_main 中的 EGL 清屏代替
     (void)inUpdate;
 }
-
-}  // extern "C"
-
-// ----------------------------------------------------------------------------
-// game.h 中的 C++ 链接函数（不能放在 extern "C" 块内）
-// ----------------------------------------------------------------------------
 
 // 音频采样率（CD 质量立体声）
 // 注：getSoundSamples 由 gameSource/musicPlayer.cpp 提供，无需在此定义
@@ -166,8 +162,10 @@ double game_getCurrentTime() {
     return 0.0;
 }
 
-void startRecording16BitMonoSound(int inSampleRate) {
-    // stub: 开始录音
+// game.h 声明 startRecording16BitMonoSound 返回 char
+char startRecording16BitMonoSound(int inSampleRate) {
+    // stub: 开始录音（Android 暂不支持）
+    return 0;
 }
 
 int16_t* stopRecording16BitMonoSound(int *outNumSamples) {
@@ -239,9 +237,9 @@ SpriteHandle fillSprite(Image *inImage, char inTransparentLowerLeftCorner) {
 }
 
 // 异步文件读取 API
-void* startAsyncFileRead(const char *inPath) {
+int startAsyncFileRead(const char *inPath) {
     // stub: 开始异步文件读取（返回假句柄）
-    return (void*)0x1;
+    return 1;
 }
 
 // ============================================================================
@@ -328,4 +326,138 @@ char isClipboardSupported() {
 char* getClipboardText() {
     // stub: 返回空字符串
     return nullptr;
+}
+
+// ============================================================================
+// 批 4a stubs：web 请求 API（game.h 声明，gameSDL.cpp 实现，Android 暂用桩）
+// serialWebRequests / lifeTokens / fitnessScore / photos 等文件调用这些函数
+// ============================================================================
+
+int startWebRequest( const char *inMethod, const char *inURL,
+                     const char *inBody ) {
+    // stub: Android 暂不发起真实 HTTP 请求
+    return -1;
+}
+
+int stepWebRequest( int inHandle ) {
+    // stub: 返回 -1 表示请求失败
+    return -1;
+}
+
+char *getWebResult( int inHandle ) {
+    // stub: 返回空（无结果）
+    return nullptr;
+}
+
+unsigned char *getWebResult( int inHandle, int *outSize ) {
+    // stub: 返回空（无结果）
+    if( outSize ) *outSize = 0;
+    return nullptr;
+}
+
+void clearWebRequest( int inHandle ) {
+    // stub: 无操作
+}
+
+// ============================================================================
+// 批 4a stubs：game.cpp 全局变量（批 4a 文件通过 extern 引用）
+// 接入 game.cpp 后这些定义需移除
+// ============================================================================
+
+#include "minorGems/system/Time.h"
+#include "minorGems/graphics/Image.h"
+#include "minorGems/graphics/RawRGBAImage.h"
+
+// game.cpp 全局变量
+char isAHAP = false;
+char *userEmail = nullptr;
+int webRetrySeconds = 5;
+char *shutdownMessage = nullptr;
+double visibleViewWidth = 1024.0;
+double viewHeight = 768.0;
+
+// game.h 声明的函数（gameSDL.cpp 实现，Android 暂用桩）
+
+// 翻译函数：直接返回 key（无翻译表时原样显示）
+const char *translate( const char *inTranslationKey ) {
+    return inTranslationKey;
+}
+
+// 游戏时间（秒）
+timeSec_t game_timeSec() {
+    return Time::timeSec();
+}
+
+// gameGraphics.h - 从基础目录读取 TGA（Raw 格式）
+RawRGBAImage *readTGAFileRawBase( const char *inTGAFileName ) {
+    // stub: 返回空（无文件系统访问）
+    return nullptr;
+}
+
+// gameGraphics.h - 从 RawRGBAImage 创建 sprite
+SpriteHandle fillSprite( RawRGBAImage *inRawImage ) {
+    // stub: 返回假句柄
+    return (void*)0x1;
+}
+
+// gameGraphics.h - 写入 TGA 文件
+void writeTGAFile( const char *inTGAFileName, Image *inImage ) {
+    // stub: 无操作（Android 不写 TGA 缓存）
+}
+
+// gameGraphics.h - 截取屏幕区域
+Image *getScreenRegion( double inX, double inY,
+                        double inWidth, double inHeight ) {
+    // stub: 返回空（无 OpenGL 读回）
+    return nullptr;
+}
+
+// gameGraphics.h - 截取屏幕区域（像素坐标）
+Image *getScreenRegionRaw( int inStartX, int inStartY,
+                           int inWidth, int inHeight ) {
+    // stub: 返回空
+    return nullptr;
+}
+
+// gameGraphics.h - 从 Raw 格式读取 TGA
+RawRGBAImage *readTGAFileRaw( const char *inTGAFileName ) {
+    // stub: 返回空
+    return nullptr;
+}
+
+// Font 全局变量（批 4a 文件引用）
+Font *numbersFontFixed = nullptr;
+
+// ============================================================================
+// 批 4a stubs：gameGraphics.h 函数（gameSDL.cpp 实现，Android 暂用桩）
+// ============================================================================
+
+void toggleLinearMagFilter( char inLinearFilterOn ) {
+    // stub: 无操作
+}
+
+char getLinearMagFilterOn() {
+    // stub: 返回关闭
+    return 0;
+}
+
+void getScreenDimensions( int *outWidth, int *outHeight ) {
+    // stub: 返回默认分辨率
+    if( outWidth ) *outWidth = 1024;
+    if( outHeight ) *outHeight = 768;
+}
+
+// ============================================================================
+// 批 4a stubs：game.cpp 全局变量（photos.cpp 引用）
+// ============================================================================
+
+char *serverIP = nullptr;
+
+// ============================================================================
+// 批 4a stubs：LivingLifePage 方法（liveAnimationTriggers.cpp 调用）
+// 接入 LivingLifePage.cpp 后这些定义需移除
+// ============================================================================
+
+void LivingLifePage::sendToServerSocket( char *inMessage ) {
+    // stub: 无操作（网络未接入时忽略）
 }

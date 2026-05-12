@@ -61,6 +61,8 @@ set(MINORGEMS_EXT
     ${MINORGEMS_ROOT}/crypto/hashes/sha1.cpp
     ${MINORGEMS_ROOT}/io/file/linux/PathLinux.cpp
     ${MINORGEMS_ROOT}/io/file/unix/DirectoryUnix.cpp
+    # 批 4a 新增：URL 编解码（lifeTokens/fitnessScore/photos 需要）
+    ${MINORGEMS_ROOT}/network/web/URLUtils.cpp
 )
 
 # minorGems 图形/音频工具（gameSource 批 2 需要）
@@ -130,6 +132,36 @@ set(GAMESOURCE_BATCH_3
     ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/spellCheck.cpp
 )
 
+# gameSource 批 4a：游戏逻辑支持工具（Task 2.3d-a）
+# 包含：message / serialWebRequests / whiteSprites / pathFind /
+#       liveObjectSet / liveAnimationTriggers / lifeTokens / fitnessScore /
+#       emotion / groundSprites / overlayBank /
+#       zoomView / keyLegend / photos / photoCache
+# 排除：PickableStatics（依赖 Editor*.h，永不接入）
+#       rocketAnimation（依赖 LivingLifePage 方法 + 大量 game.cpp 全局变量，移至批 4c）
+# 新增 minorGems：URLUtils.cpp（已加入 MINORGEMS_EXT）
+# 新增 commonSource：fractalNoise.cpp（groundSprites 需要）
+# 新增 stubs：translate / game_timeSec / startWebRequest 等（见 game_stubs.cpp）
+set(GAMESOURCE_BATCH_4A
+    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/message.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/serialWebRequests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/whiteSprites.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/pathFind.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/liveObjectSet.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/liveAnimationTriggers.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/lifeTokens.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/fitnessScore.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/emotion.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/groundSprites.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/overlayBank.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/zoomView.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/keyLegend.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/photos.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../gameSource/photoCache.cpp
+    # commonSource 依赖（groundSprites 需要）
+    ${CMAKE_CURRENT_SOURCE_DIR}/../commonSource/fractalNoise.cpp
+)
+
 # OneLife Android JNI 模块（Phase 1 创建的模块）
 set(JNI_SOURCES
     jni/EGLContext.cpp
@@ -158,6 +190,7 @@ add_library(onelife SHARED
     ${GAMESOURCE_BATCH_1}
     ${GAMESOURCE_BATCH_2}
     ${GAMESOURCE_BATCH_3}
+    ${GAMESOURCE_BATCH_4A}
 )
 
 target_include_directories(onelife PRIVATE
