@@ -9,12 +9,47 @@ set(CMAKE_C_STANDARD 11)
 # minorGems 路径（android-port worktree）
 set(MINORGEMS_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/../../minorGems-android-port)
 
+# minorGems 的头文件以 "minorGems/xxx.h" 形式引用。
+# 在构建目录下创建 include/minorGems -> MINORGEMS_ROOT 的符号链接，
+# 然后把 include/ 加入 include 路径，使 "minorGems/xxx.h" 能被正确解析。
+set(MINORGEMS_INCLUDE_STAGING ${CMAKE_CURRENT_BINARY_DIR}/include)
+file(MAKE_DIRECTORY ${MINORGEMS_INCLUDE_STAGING})
+execute_process(
+    COMMAND ${CMAKE_COMMAND} -E create_symlink
+        ${MINORGEMS_ROOT}
+        ${MINORGEMS_INCLUDE_STAGING}/minorGems
+)
+
 # minorGems 核心源文件（Phase 1 创建的模块）
 set(MINORGEMS_SOURCES
     ${MINORGEMS_ROOT}/graphics/openGL/glInclude.h
     ${MINORGEMS_ROOT}/io/file/android/FileAndroid.cpp
     ${MINORGEMS_ROOT}/sound/android/OpenSLAudioBackend.cpp
     ${MINORGEMS_ROOT}/game/platforms/Android/gameAndroid.cpp
+)
+
+# minorGems 网络层（socket API 实现）
+# 只需要 SocketClient/Socket/HostAddress/NetworkFunctionLocks 这几个核心文件
+set(MINORGEMS_NETWORK
+    ${MINORGEMS_ROOT}/network/NetworkFunctionLocks.cpp
+    ${MINORGEMS_ROOT}/network/linux/SocketClientLinux.cpp
+    ${MINORGEMS_ROOT}/network/linux/SocketLinux.cpp
+    ${MINORGEMS_ROOT}/network/linux/HostAddressLinux.cpp
+)
+
+# minorGems util（stringUtils、AppLog 等）
+set(MINORGEMS_UTIL
+    ${MINORGEMS_ROOT}/util/stringUtils.cpp
+    ${MINORGEMS_ROOT}/util/printUtils.cpp
+    ${MINORGEMS_ROOT}/util/log/AppLog.cpp
+    ${MINORGEMS_ROOT}/util/log/Log.cpp
+    ${MINORGEMS_ROOT}/util/log/PrintLog.cpp
+)
+
+# minorGems system（MutexLock 等 POSIX 实现，NetworkFunctionLocks 需要）
+set(MINORGEMS_SYS
+    ${MINORGEMS_ROOT}/system/linux/MutexLockLinux.cpp
+    ${MINORGEMS_ROOT}/system/unix/TimeUnix.cpp
 )
 
 # OneLife Android JNI 模块（Phase 1 创建的模块）
@@ -37,12 +72,17 @@ add_library(onelife SHARED
     jni/android_main.cpp
     ${JNI_SOURCES}
     ${MINORGEMS_SOURCES}
+    ${MINORGEMS_NETWORK}
+    ${MINORGEMS_UTIL}
+    ${MINORGEMS_SYS}
 )
 
 target_include_directories(onelife PRIVATE
     ${ANDROID_NDK}/sources/android/native_app_glue
     ${CMAKE_CURRENT_SOURCE_DIR}/jni
     ${MINORGEMS_ROOT}
+    # "minorGems/xxx.h" 形式的 include 通过此 staging 目录解析
+    ${MINORGEMS_INCLUDE_STAGING}
 )
 
 target_link_libraries(onelife
