@@ -6,6 +6,15 @@
 #include <EGL/egl.h>
 #include <GLES/gl.h>
 #include <android/log.h>
+#include <unistd.h>
+
+#include "AssetFileBridge.h"
+
+// FileAndroid.cpp 中定义的全局注入函数
+namespace minorGemsAndroid {
+    void setAssetManager(AAssetManager* mgr);
+    void setInternalDataPath(const char* path);
+}
 
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO,  "OneLife", __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, "OneLife", __VA_ARGS__)
@@ -79,7 +88,22 @@ static void drawFrame(AppState* s) {
 static void onAppCmd(struct android_app* app, int32_t cmd) {
     AppState* s = (AppState*)app->userData;
     switch (cmd) {
-        case APP_CMD_INIT_WINDOW:    if (app->window) initEGL(app, s); break;
+        case APP_CMD_INIT_WINDOW:
+            if (app->window) {
+                // 注入 AAssetManager + 内部存储路径（供 File API 和 AssetFileBridge 使用）
+                if (app->activity) {
+                    minorGemsAndroid::setAssetManager(app->activity->assetManager);
+                    minorGemsAndroid::setInternalDataPath(app->activity->internalDataPath);
+                    // 切换工作目录到内部存储，让 fopen 相对路径写入能落到正确位置
+                    if (app->activity->internalDataPath) {
+                        chdir(app->activity->internalDataPath);
+                    }
+                    // 首次启动复制默认设置
+                    onelife::AssetFileBridge::copyDefaultSettings();
+                }
+                initEGL(app, s);
+            }
+            break;
         case APP_CMD_TERM_WINDOW:    termEGL(s); break;
         case APP_CMD_DESTROY:        termEGL(s); break;
         default: break;
