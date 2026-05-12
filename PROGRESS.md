@@ -1,10 +1,10 @@
 # OneLife Android 客户端开发进度
 
-> 最后更新：2025-05-12 19:30
+> 最后更新：2025-05-12 20:06
 
 ## 当前状态
 
-**Phase 2 已完成** ✅ - gameSource 完整集成，APK 可启动并加载所有资源
+**Phase 3 进行中** 🔄 - Task 3.1 TouchInputAdapter 已完成
 
 ### 关键指标
 
@@ -13,8 +13,19 @@
 - **游戏启动**: "OneLife client v437 (binV=436, dataV=437) starting up"
 - **资源加载**: 0 个 Failed/ERROR/CRITICAL 错误
 - **渲染**: 60 FPS 稳定，EGL + GLES 1.x 正常工作
+- **触摸**: tap / drag / 长按 / 双指 Shift 均正确识别，gameSource 收到 pointer 事件
 
 ### 最近完成的工作
+
+#### Phase 3.1 - TouchInputAdapter（2025-05-12）
+- **目标**: 让 gameSource 的 pointerDown/Move/Drag/Up 拿到触摸事件
+- **实现**:
+  - 新增 `android/jni/TouchInputAdapter.{h,cpp}`：AInputEvent → 鼠标事件翻译
+  - 单指 tap = 左键 / 单指 >24px 移动 = pointerDrag / 长按 ≥500ms 原地松手 = 右键 / 双指 = Shift
+  - `extern "C"` 暴露 4 个状态访问器给 game_stubs.cpp
+  - `android_main` 通过 lambda 挂 `onInputEvent`
+  - game_stubs.cpp 里 `isShiftKeyDown` / `isLastMouseButtonRight` / `getLastMouseScreenPos` 改为读取真实状态
+- **效果**: `adb input tap/swipe` + 长按在 logcat 里都能看到对应的 up (x,y) dur=... drag=0/1 right=0/1 shift=0/1；gameSource 收到 pointer 回调无 crash
 
 #### Phase 2.3 - 构建性能优化（2025-05-12）
 - **问题**: JuiceFS 上 aapt 打包 ~20000 个小资源文件 I/O 极慢（冷启动构建需 10 分钟）
@@ -47,43 +58,31 @@
 ### 最近 3 个提交
 
 ```
+2c6fc219 feat(android): TouchInputAdapter 触摸→鼠标事件适配
+3be56c21 docs(android): 添加开发进度文档 PROGRESS.md
 c5d4ff65 build(android): 支持本地硬盘构建目录，加速 17x
-9ff247d4 fix(android): 实现 readTGAFile 手动解析器 + graphics 资源
-9c9dfa6f build(android): 接入 AndroidLog 到 CMakeLists
 ```
 
 ---
 
-## 下一步：Phase 3 - 触摸输入与交互
+## 下一步：Phase 3 继续
 
 **目标**: 实现完整可玩的游戏操作，包括移动、拾取、放下、聊天
 
-### Task 3.1 - TouchInput（推荐优先）⭐
+### Task 3.2 - 软键盘（输入账号密码）⭐
 
 **为什么先做这个**:
-- 这是从"能跑"到"能玩"的关键一步
-- 解锁后续所有功能测试（登录、音频、网络都需要触摸交互）
-- 相对独立，风险可控
-- 快速看到成果，提升开发体验
+- 没有键盘就没法登录，后续所有联网测试都卡在这
+- 相对独立，改动集中在 jni + TextField
 
 **实现计划**:
-1. 在 `android_main.cpp` 中接入 `AMotionEvent`
-   - `android_app->onInputEvent` 回调
-   - 解析触摸坐标（x, y）
-   - 转换到游戏坐标系
-2. 调用 gameSource 的触摸回调
-   - `platformTouchDown(x, y)`
-   - `platformTouchMove(x, y)`
-   - `platformTouchUp(x, y)`
-3. 验证
-   - logcat 看到触摸事件
-   - 点击 UI 按钮有响应
-
-**预计时间**: 1-2 小时
-
-### Task 3.2 - 软键盘（输入账号密码）
+1. 新增 `android/jni/SoftKeyboard.{h,cpp}`：包装 `ANativeActivity_showSoftInput/hide`
+2. TextField.cpp 焦点变化时 `#ifdef __ANDROID__` 调用
+3. `TouchInputAdapter::handle` 增加 `AINPUT_EVENT_TYPE_KEY` 分支，把 AKEYCODE 映射到 ASCII 调 `keyDown/keyUp`
 
 ### Task 3.3 - DPI 适配（640×320 太小）
+
+目前模拟器跑 640×320，按钮在触摸下很难精准点中。需要让 gameSource 用 1280×720 逻辑分辨率 + GL viewport 缩放。
 
 ### Task 3.4 - P3 验证（能进入登录界面并输入）
 
@@ -166,7 +165,7 @@ $ADB logcat -s 'OneLifeGame:V' -t 50
 - [x] logcat 看到 "OneLife client v437 starting up"
 - [x] 所有 UI 图标加载成功（0 个 Failed 错误）
 - [x] 60 FPS 稳定渲染
-- [ ] 触摸屏幕有响应（Task 3.1）
+- [x] 触摸屏幕有响应（Task 3.1）
 - [ ] 能进入登录界面（Task 3.2-3.4）
 - [ ] 能连接服务器（Phase 4）
 
@@ -175,8 +174,8 @@ $ADB logcat -s 'OneLifeGame:V' -t 50
 ## 已知问题与限制
 
 ### 当前限制
-- **无触摸输入**: 游戏启动但无法交互（Phase 3 待实现）
-- **屏幕太小**: 640×320 固定分辨率，UI 元素过小（Task 3.3 DPI 适配）
+- **UI 精准点击受限**: 640×320 下按钮过小，难以精准命中（Task 3.3 DPI 适配）
+- **无软键盘**: 还无法输入账号密码（Task 3.2）
 - **音频未测试**: OpenSL 后端已接入但未验证
 - **网络未测试**: socket API 已实现但未连接服务器
 
