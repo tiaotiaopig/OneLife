@@ -1,10 +1,10 @@
 # OneLife Android 客户端开发进度
 
-> 最后更新：2026-05-13 12:58
+> 最后更新：2026-05-13 13:42
 
 ## 当前状态
 
-**Phase 3 基本完成** ✅ - UI 正常渲染 + 触摸交互 + 软键盘 + 网络连通
+**Phase 4 完成** ✅ - 成功连接 Linux 服务端并进入游戏世界，交互正常
 
 ### 关键指标
 
@@ -13,17 +13,29 @@
 - **游戏启动**: "OneLife client v437 (binV=436, dataV=437) starting up"
 - **资源加载**: 0 个 Failed/ERROR/CRITICAL 错误
 - **渲染**: 60 FPS 稳定，EGL + GLES 1.x 正常工作
-- **UI**: 登录/账号界面正常显示，按钮可点击
-- **触摸**: tap / drag / 长按 / 双指 Shift 均正确识别
-- **软键盘**: TextField 焦点变化自动 show/hide，能输入文字
-- **网络**: 模拟器通过 10.0.2.2:8005 能访问宿主机 OneLifeServer
-- **逻辑分辨率**: 由 GL 正交投影处理（setViewSize 1280 + setLetterbox 1280×720）
+- **UI**: 登录界面 + 游戏世界正常显示
+- **触摸**: 点击移动、长按交互均正常
+- **软键盘**: TextField 焦点变化自动 show/hide，能输入邮箱/密码
+- **网络**: TCP 连接成功，进入游戏世界，能看到地面纹理和游戏元素
+- **GL 投影**: setViewSize/setLetterbox/screenToWorld 完整实现
 - **触摸**: tap / drag / 长按 / 双指 Shift 均正确识别，screenToWorld 映射到世界坐标
 - **软键盘**: TextField 焦点变化自动 show/hide，键盘输入映射到 keyDown/keyUp
 
 ### 最近完成的工作
 
-#### Phase 3.4 - GL 投影修复 + 端到端验证（2026-05-13）
+#### Phase 4 - 服务端联调（2026-05-13）
+- **问题 1**: 登录按钮不显示 —— `skipFPSMeasure=0` + `targetFrameRate` 未设置导致
+  FPS 测量永远失败
+- **问题 2**: Socket 连接失败 —— `readFromSocket` 在非阻塞连接未完成时返回 -1（错误）
+  而非 0（暂无数据）；`openSocketConnection` 的 timeout=0 非阻塞模式不可靠
+- **问题 3**: `useCustomServer=0`（默认设置未配置服务端地址）
+- **修复**:
+  - `readFromSocket` 未连接时返回 0
+  - `openSocketConnection` 改用 5 秒阻塞连接
+  - `default_settings` 加入 skipFPSMeasure=1, targetFrameRate=60, useCustomServer=1 等
+- **效果**: TCP 连接成功，进入游戏世界，点击移动和长按交互正常
+
+#### Phase 3.4 - GL 投影修复（2026-05-13）
 - **问题**: UI 全黑 —— game_stubs.cpp 中 setViewSize/setLetterbox/setViewCenterPosition
   都是空 stub，GL 投影矩阵从未被设置（默认 identity -1~1），gameSource 绘制的
   所有内容（坐标在 -640~640 范围）都在屏幕外
@@ -91,21 +103,20 @@ e451075d feat(android): 软键盘支持 + KEY 事件映射
 
 ---
 
-## 下一步：Phase 4 - 与 Linux 服务端联调
+## 下一步：Phase 5 - 打磨
 
-**目标**: 完成完整游戏流程（登录→出生→移动→交互→死亡）
+**目标**: 性能优化、电池、屏幕适配、错误处理
 
-### 当前状态
-- 网络连通已验证（模拟器 nc 10.0.2.2:8005 收到 SN 响应）
-- UI 正常显示，登录界面可交互
-- 需要完成：创建账号 → 登录 → 进入游戏世界
+### 优先事项
+1. **后台暂停**：APP_CMD_PAUSE 时停止渲染和音频，节省电池
+2. **DPI 适配**：真机上 1080p+ 屏幕的 UI 缩放（当前 640×320 模拟器上 OK，真机需验证）
+3. **音频验证**：OpenSL ES 后端已接入但未测试
+4. **错误处理**：网络断线提示、重连逻辑
 
-### 待解决
-- 确认 OneLife 的账号创建流程在 Android 上是否正常工作
-- 验证 socket API（openSocketConnection 等）在实际游戏流程中的表现
-- 可能需要调试 DNS 解析（如果客户端尝试解析域名而非直接用 IP）
-
-### Task 3.4 - P3 验证（能进入登录界面并输入）
+### 已知问题
+- `openSocketConnection` 使用 5 秒阻塞连接（会冻结 UI），需改为后台线程
+- `game_stubs.cpp` 中仍有 ~20 个空 stub（大部分是渲染相关，不影响核心游戏流程）
+- 模拟器分辨率 640×320 较低，真机上需验证 UI 缩放效果
 
 ---
 
@@ -116,8 +127,8 @@ e451075d feat(android): 软键盘支持 + KEY 事件映射
 | **Phase 0** | ✅ 完成 | NDK 工具链、最简 NativeActivity APK |
 | **Phase 1** | ✅ 完成 | minorGems Android 平台层（EGL/GLES/AAsset/OpenSL） |
 | **Phase 2** | ✅ 完成 | gameSource 集成、资源加载、构建优化 |
-| **Phase 3** | 🔄 进行中 | 触摸输入、软键盘、DPI 适配 |
-| **Phase 4** | ⏳ 待开始 | 与 Linux 服务端联调 |
+| **Phase 3** | ✅ 完成 | 触摸输入、软键盘、GL 投影、坐标映射 |
+| **Phase 4** | ✅ 完成 | 与 Linux 服务端联调，进入游戏世界 |
 | **Phase 5** | ⏳ 待开始 | 性能优化、电池、屏幕适配 |
 
 ---
