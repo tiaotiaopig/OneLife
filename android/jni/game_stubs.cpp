@@ -738,14 +738,6 @@ void screenToWorld( int inX, int inY, float *outX, float *outY ) {
         if (outX) *outX = (float)inX;
         if (outY) *outY = (float)inY;
     }
-    static int logCount = 0;
-    if (logCount < 10) {
-        __android_log_print(ANDROID_LOG_INFO, "OneLife",
-            "screenToWorld(%d,%d) worldCoord=%d viewSize=%.0f → (%.1f, %.1f)",
-            inX, inY, (int)gMouseWorldCoordinates, gViewSize,
-            outX ? *outX : -999, outY ? *outY : -999);
-        logCount++;
-    }
 }
 
 // game.h - 音效淡出
@@ -834,18 +826,10 @@ int readFromSocket( int inHandle, unsigned char *inDataBuffer, int inBytesToRead
     for( int i = 0; i < sCppSocketRecords.size(); i++ ) {
         SockRecord *r = sCppSocketRecords.getElement( i );
         if( r->handle == inHandle ) {
-            int connected = r->sock->isConnected();
-            static int readLogCount = 0;
-            if (readLogCount < 5) {
-                __android_log_print(ANDROID_LOG_INFO, "OneLife",
-                    "readFromSocket: handle=%d isConnected=%d", inHandle, connected);
-                readLogCount++;
-            }
-            if( connected == 1 ) {
+            if( r->sock->isConnected() == 1 ) {
                 int n = r->sock->receive( inDataBuffer, inBytesToRead, 0 );
                 return ( n == -2 ) ? 0 : n;
             }
-            // 非阻塞连接尚未完成：返回 0（暂无数据），不是 -1（错误）
             return 0;
         }
     }
