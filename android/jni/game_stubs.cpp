@@ -8,6 +8,17 @@
 #include <stdint.h>
 #include <android/log.h>
 
+// Phase 3 Task 3.2：软键盘控制（供 TextField.cpp 调用）
+#include "SoftKeyboard.h"
+
+extern "C" void onelifeAndroidShowSoftKeyboard() {
+    onelife::SoftKeyboard::show();
+}
+
+extern "C" void onelifeAndroidHideSoftKeyboard() {
+    onelife::SoftKeyboard::hide();
+}
+
 // 批 4a：提前包含 LivingLifePage.h（间接包含 game.h），
 // 确保所有函数签名与 game.h 声明一致
 #include "LivingLifePage.h"

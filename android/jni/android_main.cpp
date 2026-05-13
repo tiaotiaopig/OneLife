@@ -23,6 +23,13 @@ namespace minorGemsAndroid {
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO,  "OneLife", __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, "OneLife", __VA_ARGS__)
 
+// 全局 android_app 指针（供 SoftKeyboard 等模块访问）
+static struct android_app* gAndroidApp = nullptr;
+
+extern "C" struct android_app* onelifeAndroidGetApp() {
+    return gAndroidApp;
+}
+
 struct AppState {
     EGLDisplay display = EGL_NO_DISPLAY;
     EGLContext context = EGL_NO_CONTEXT;
@@ -139,6 +146,8 @@ static void onAppCmd(struct android_app* app, int32_t cmd) {
 }
 
 extern "C" void android_main(struct android_app* app) {
+    gAndroidApp = app;  // 保存全局指针供 SoftKeyboard 等模块使用
+
     AppState state{};
     app->userData = &state;
     app->onAppCmd = onAppCmd;

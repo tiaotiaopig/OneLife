@@ -218,6 +218,7 @@ set(JNI_SOURCES
     jni/AndroidPlatform.cpp
     jni/AssetFileBridge.cpp
     jni/TouchInputAdapter.cpp
+    jni/SoftKeyboard.cpp
     jni/game_stubs.cpp  # TODO(Task 2.4): 接入 gameSource 后删除
 )
 

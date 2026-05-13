@@ -9,6 +9,13 @@
 #include "minorGems/util/SimpleVector.h"
 #include "minorGems/graphics/openGL/KeyboardHandlerGL.h"
 
+#ifdef __ANDROID__
+// Android 软键盘控制（由 game_stubs.cpp 提供）
+extern "C" {
+    void onelifeAndroidShowSoftKeyboard();
+    void onelifeAndroidHideSoftKeyboard();
+}
+#endif
 
 
 // start:  none focused
@@ -1173,7 +1180,7 @@ void TextField::specialKeyUp( int inKeyCode ) {
 
 
 void TextField::focus() {
-    
+
     if( sFocusedTextField != NULL && sFocusedTextField != this ) {
         // unfocus last focused
         sFocusedTextField->unfocus();
@@ -1183,13 +1190,18 @@ void TextField::focus() {
     sFocusedTextField = this;
 
     mContentsHidden = false;
+
+#ifdef __ANDROID__
+    // Android: 获得焦点时弹出软键盘
+    onelifeAndroidShowSoftKeyboard();
+#endif
     }
 
 
 
 void TextField::unfocus() {
     mFocused = false;
- 
+
     // hold-down broken if not focused
     mHoldDeleteSteps = -1;
     mFirstDeleteRepeatDone = false;
@@ -1201,7 +1213,13 @@ void TextField::unfocus() {
         if( mFireOnLeave ) {
             fireActionPerformed( this );
             }
-        }    
+        }
+
+#ifdef __ANDROID__
+    // Android: 失去焦点时隐藏软键盘
+    onelifeAndroidHideSoftKeyboard();
+#endif
+
     }
 
 

@@ -29,6 +29,8 @@ void pointerDown(float inX, float inY);
 void pointerMove(float inX, float inY);
 void pointerDrag(float inX, float inY);
 void pointerUp(float inX, float inY);
+void keyDown(unsigned char inASCII);
+void keyUp(unsigned char inASCII);
 
 // screenToWorld：物理像素 → 世界坐标
 // 当前 Android 下由 game_stubs.cpp 提供 identity 实现（入参=出参），
@@ -67,6 +69,71 @@ void toWorld(float inX, float inY, float* outX, float* outY) {
     screenToWorld(ix, iy, outX, outY);
     gLastMouseX = ix;
     gLastMouseY = iy;
+}
+
+// 把 AKEYCODE 映射到 ASCII（简化版，仅支持常用字符）
+// 返回 0 表示无法映射
+unsigned char mapKeyCodeToASCII(int32_t keyCode, int32_t metaState) {
+    // Shift 修饰
+    bool shift = (metaState & AMETA_SHIFT_ON) != 0;
+
+    // 字母 A-Z
+    if (keyCode >= AKEYCODE_A && keyCode <= AKEYCODE_Z) {
+        char base = 'a' + (keyCode - AKEYCODE_A);
+        return shift ? (base - 32) : base;  // Shift → 大写
+    }
+
+    // 数字 0-9
+    if (keyCode >= AKEYCODE_0 && keyCode <= AKEYCODE_9) {
+        if (shift) {
+            // Shift + 数字 → 符号（美式键盘布局）
+            const char symbols[] = ")!@#$%^&*(";
+            return symbols[keyCode - AKEYCODE_0];
+        }
+        return '0' + (keyCode - AKEYCODE_0);
+    }
+
+    // 特殊键
+    switch (keyCode) {
+    case AKEYCODE_SPACE:      return ' ';
+    case AKEYCODE_ENTER:      return 13;  // '\r'
+    case AKEYCODE_DEL:        return 8;   // Backspace
+    case AKEYCODE_TAB:        return 9;
+    case AKEYCODE_PERIOD:     return shift ? '>' : '.';
+    case AKEYCODE_COMMA:      return shift ? '<' : ',';
+    case AKEYCODE_SLASH:      return shift ? '?' : '/';
+    case AKEYCODE_SEMICOLON:  return shift ? ':' : ';';
+    case AKEYCODE_APOSTROPHE: return shift ? '"' : '\'';
+    case AKEYCODE_LEFT_BRACKET:  return shift ? '{' : '[';
+    case AKEYCODE_RIGHT_BRACKET: return shift ? '}' : ']';
+    case AKEYCODE_BACKSLASH:     return shift ? '|' : '\\';
+    case AKEYCODE_MINUS:      return shift ? '_' : '-';
+    case AKEYCODE_EQUALS:     return shift ? '+' : '=';
+    case AKEYCODE_GRAVE:      return shift ? '~' : '`';
+    default:                  return 0;
+    }
+}
+
+// 处理键盘事件（软键盘输入）
+int32_t handleKey(AInputEvent* event) {
+    int32_t action   = AKeyEvent_getAction(event);
+    int32_t keyCode  = AKeyEvent_getKeyCode(event);
+    int32_t metaState = AKeyEvent_getMetaState(event);
+
+    unsigned char ascii = mapKeyCodeToASCII(keyCode, metaState);
+    if (ascii == 0) {
+        return 0;  // 无法映射，不消费
+    }
+
+    if (action == AKEY_EVENT_ACTION_DOWN) {
+        keyDown(ascii);
+        return 1;
+    } else if (action == AKEY_EVENT_ACTION_UP) {
+        keyUp(ascii);
+        return 1;
+    }
+
+    return 0;
 }
 
 // 只处理第 0 号手指（gameSource 是单指鼠标模型）
@@ -169,8 +236,9 @@ int handle(AInputEvent* event) {
     int32_t type = AInputEvent_getType(event);
     if (type == AINPUT_EVENT_TYPE_MOTION) {
         return handleMotion(event);
+    } else if (type == AINPUT_EVENT_TYPE_KEY) {
+        return handleKey(event);
     }
-    // KEY 事件等待 Task 3.2 软键盘支持
     return 0;
 }
 
