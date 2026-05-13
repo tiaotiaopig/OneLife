@@ -1,13 +1,13 @@
 cmake_minimum_required(VERSION 3.18)
 project(OneLifeAndroid LANGUAGES C CXX)
 
-# Phase 2.3：接入 minorGems-android-port + JNI 模块
+# Phase 2.3：接入 minorGems（android-port 分支）+ JNI 模块
 
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_C_STANDARD 11)
 
-# minorGems 路径（android-port worktree）
-set(MINORGEMS_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/../../minorGems-android-port)
+# minorGems 路径（需切到 android-port 分支）
+set(MINORGEMS_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/../../minorGems)
 
 # minorGems 的头文件以 "minorGems/xxx.h" 形式引用。
 # 在构建目录下创建 include/minorGems -> MINORGEMS_ROOT 的符号链接，

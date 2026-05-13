@@ -144,7 +144,7 @@ OneLife Android APK (76MB)
 │   │   ├── LivingLifePage.cpp - 游戏主逻辑
 │   │   ├── game.cpp - 主循环
 │   │   └── spriteBank/soundBank - 资源管理
-│   ├── minorGems-android-port
+│   ├── minorGems (android-port 分支)
 │   │   ├── File.h - AAsset 回退支持 ✅
 │   │   ├── AndroidLog - logcat 转发 ✅
 │   │   ├── gameAndroid.cpp - 平台主循环 ✅
@@ -243,7 +243,8 @@ git checkout android-client
 git merge master                # 合入上游更新
 
 # minorGems
-cd ../minorGems-android-port
+cd ../minorGems
+git checkout android-port
 git fetch origin master
 git merge origin/master         # 合入上游更新
 ```
@@ -271,7 +272,7 @@ git merge origin/master         # 合入上游更新
 - **工作目录**: `/data1/fengli16/Projects/CProjects/OneLife`（本地硬盘，编译快）
 - **源码同步**: 从 `/jfs/fengli16/Projects/CProjects/OneLife` rsync
 - **依赖仓库**:
-  - minorGems-android-port: `/jfs/fengli16/Projects/CProjects/minorGems-android-port`
+  - minorGems: `/data1/fengli16/Projects/CProjects/minorGems`（切到 `android-port` 分支）
   - OneLifeData7: `/data1/fengli16/Projects/CProjects/OneLifeData7`
 - **构建输出**: `/data1/build/OneLife-android/debug/`
 - **NDK**: `$ANDROID_NDK_ROOT` (android-ndk-r25c)
