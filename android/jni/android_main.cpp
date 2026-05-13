@@ -10,6 +10,7 @@
 
 #include "AssetFileBridge.h"
 #include "TouchInputAdapter.h"
+#include "DeviceInfo.h"
 
 // minorGems Android 平台层接口（FileAndroid.cpp / gameAndroid.cpp 中定义）
 namespace minorGemsAndroid {
@@ -67,6 +68,7 @@ static int initEGL(struct android_app* app, AppState* s) {
     eglQuerySurface(s->display, s->surface, EGL_WIDTH,  &s->width);
     eglQuerySurface(s->display, s->surface, EGL_HEIGHT, &s->height);
     LOGI("EGL ready: %dx%d", s->width, s->height);
+    onelife::DeviceInfo::logGLInfo();
     return 0;
 }
 
@@ -164,6 +166,7 @@ extern "C" void android_main(struct android_app* app) {
     };
 
     LOGI("OneLife Android starting...");
+    onelife::DeviceInfo::logStartupInfo(app);
 
     while (true) {
         int events;
@@ -186,6 +189,7 @@ extern "C" void android_main(struct android_app* app) {
         }
         if (state.platformInitialized && !state.paused) {
             tickGame(&state);
+            onelife::DeviceInfo::tickFPS();
         } else if (state.display != EGL_NO_DISPLAY && !state.paused) {
             drawFrameFallback(&state);
         }
