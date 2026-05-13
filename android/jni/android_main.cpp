@@ -12,6 +12,10 @@
 #include "TouchInputAdapter.h"
 #include "DeviceInfo.h"
 
+// OpenSL ES 音频后端（minorGems/sound/android/OpenSLAudioBackend.cpp）
+extern "C" int  minorGemsAndroid_audioStart();
+extern "C" void minorGemsAndroid_audioStop();
+
 // minorGems Android 平台层接口（FileAndroid.cpp / gameAndroid.cpp 中定义）
 namespace minorGemsAndroid {
     void setAssetManager(AAssetManager* mgr);
@@ -38,7 +42,8 @@ struct AppState {
     int  width  = 0;
     int  height = 0;
     bool platformInitialized = false;  // gameSource 是否已启动
-    bool paused = false;               // 后台暂停（停止渲染，节省电池）
+    bool audioStarted = false;          // OpenSL ES 是否已启动
+    bool paused = false;                // 后台暂停（停止渲染，节省电池）
 };
 
 static int initEGL(struct android_app* app, AppState* s) {
@@ -130,11 +135,25 @@ static void onAppCmd(struct android_app* app, int32_t cmd) {
                     minorGemsAndroid::platformInit(s->width, s->height, 60);
                     s->platformInitialized = true;
                     LOGI("gameSource platformInit returned");
+
+                    // 启动 OpenSL ES 音频（必须在 platformInit 之后，
+                    // 因为 getSampleRate() 依赖 gameSource 已初始化）
+                    if (!s->audioStarted) {
+                        if (minorGemsAndroid_audioStart() == 0) {
+                            s->audioStarted = true;
+                        } else {
+                            LOGE("Audio disabled (OpenSL ES init failed)");
+                        }
+                    }
                 }
             }
             break;
         case APP_CMD_TERM_WINDOW:
         case APP_CMD_DESTROY:
+            if (s->audioStarted) {
+                minorGemsAndroid_audioStop();
+                s->audioStarted = false;
+            }
             if (s->platformInitialized) {
                 LOGI("Shutting down gameSource");
                 minorGemsAndroid::platformShutdown();
@@ -145,10 +164,19 @@ static void onAppCmd(struct android_app* app, int32_t cmd) {
         case APP_CMD_PAUSE:
             LOGI("App paused — stopping render loop");
             s->paused = true;
+            if (s->audioStarted) {
+                minorGemsAndroid_audioStop();
+                s->audioStarted = false;
+            }
             break;
         case APP_CMD_RESUME:
             LOGI("App resumed — restarting render loop");
             s->paused = false;
+            if (s->platformInitialized && !s->audioStarted) {
+                if (minorGemsAndroid_audioStart() == 0) {
+                    s->audioStarted = true;
+                }
+            }
             break;
         default:
             break;
