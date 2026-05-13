@@ -834,8 +834,14 @@ int readFromSocket( int inHandle, unsigned char *inDataBuffer, int inBytesToRead
         if( r->handle == inHandle ) {
             if( r->sock && r->sock->isConnected() == 1 ) {
                 int n = r->sock->receive( inDataBuffer, inBytesToRead, 0 );
+                if (n == -1) {
+                    __android_log_print(ANDROID_LOG_WARN, "OneLife",
+                        "readFromSocket: connection lost (handle=%d)", inHandle);
+                }
                 return ( n == -2 ) ? 0 : n;
             }
+            __android_log_print(ANDROID_LOG_WARN, "OneLife",
+                "readFromSocket: not connected (handle=%d)", inHandle);
             return 0;
         }
     }
