@@ -1,10 +1,10 @@
 # OneLife Android 客户端开发进度
 
-> 最后更新：2026-05-13 11:30
+> 最后更新：2026-05-13 12:58
 
 ## 当前状态
 
-**Phase 3 进行中** 🔄 - Task 3.1/3.2/3.3 已完成
+**Phase 3 基本完成** ✅ - UI 正常渲染 + 触摸交互 + 软键盘 + 网络连通
 
 ### 关键指标
 
@@ -13,26 +13,29 @@
 - **游戏启动**: "OneLife client v437 (binV=436, dataV=437) starting up"
 - **资源加载**: 0 个 Failed/ERROR/CRITICAL 错误
 - **渲染**: 60 FPS 稳定，EGL + GLES 1.x 正常工作
-- **逻辑分辨率**: 物理 640×320 → 逻辑 1440×720（按 OneLife 1280×720 + 物理比例校正）
-- **触摸**: tap / drag / 长按 / 双指 Shift 均正确识别，映射到逻辑坐标
+- **UI**: 登录/账号界面正常显示，按钮可点击
+- **触摸**: tap / drag / 长按 / 双指 Shift 均正确识别
+- **软键盘**: TextField 焦点变化自动 show/hide，能输入文字
+- **网络**: 模拟器通过 10.0.2.2:8005 能访问宿主机 OneLifeServer
+- **逻辑分辨率**: 由 GL 正交投影处理（setViewSize 1280 + setLetterbox 1280×720）
+- **触摸**: tap / drag / 长按 / 双指 Shift 均正确识别，screenToWorld 映射到世界坐标
 - **软键盘**: TextField 焦点变化自动 show/hide，键盘输入映射到 keyDown/keyUp
 
 ### 最近完成的工作
 
-#### Phase 3.3 - DPI 适配（2026-05-13）
-- **问题**: platformInit 直接把 EGL 物理像素（640×320）传给 initFrameDrawer，
-  导致 gameSource 把 UI 当 640×320 绘制；若换成 1080p 真机 UI 又会过小
+#### Phase 3.4 - GL 投影修复 + 端到端验证（2026-05-13）
+- **问题**: UI 全黑 —— game_stubs.cpp 中 setViewSize/setLetterbox/setViewCenterPosition
+  都是空 stub，GL 投影矩阵从未被设置（默认 identity -1~1），gameSource 绘制的
+  所有内容（坐标在 -640~640 范围）都在屏幕外
 - **方案**:
-  - `gameAndroid.cpp` 的 `platformInit` 调用 `doesOverrideGameImageSize()` 查
-    gameSource 期望的逻辑分辨率（OneLife 是 1280×720）
-  - 按物理屏幕宽高比调整逻辑尺寸避免拉伸（640×320 → 逻辑 1440×720）
-  - 对外暴露 `getPhysicalWidth/Height`、`getLogicalWidth/Height`
-  - `screenToWorld` stub 按比例线性映射物理→逻辑
-- **效果**: logcat 看到 `platformInit physical=640x320 logical=1440x720`，
-  60 FPS 稳定，触摸坐标在 gameSource 侧是逻辑空间
+  - 实现 `redoDrawMatrix()`：参考 gameSDL.cpp，设置 glOrthof 正交投影 + glViewport
+  - `setViewSize/setLetterbox/setViewCenterPosition` 保存状态并调用 redoDrawMatrix
+  - `screenToWorld` 实现 mouseWorldCoordinates=true 分支（物理像素→世界坐标）
+  - 回退 Task 3.3 的逻辑分辨率方案（改由正交投影处理）
+  - AndroidManifest 加 `android:debuggable="true"`
+- **效果**: UI 正常显示，登录界面可见，按钮可点击，文字可输入，网络连通
 
-#### Phase 3.2 - 软键盘 + KEY 事件映射（2026-05-13）
-- **目标**: TextField 焦点变化自动弹键盘，键盘输入送到 gameSource
+#### Phase 3.1-3.2 - TouchInputAdapter + 软键盘（2026-05-13）
 - **实现**:
   - 新增 `android/jni/SoftKeyboard.{h,cpp}`：包装 `ANativeActivity_showSoftInput/hide`
   - `android_main.cpp` 保存全局 `android_app*` 并通过 `onelifeAndroidGetApp()` 暴露
@@ -81,24 +84,26 @@
 ### 最近 3 个提交
 
 ```
-5d152d71 feat(android): screenToWorld 物理像素→逻辑坐标映射
+63953152 fix(android): 实现 GL 正交投影矩阵 + screenToWorld 世界坐标
 e451075d feat(android): 软键盘支持 + KEY 事件映射
 2c6fc219 feat(android): TouchInputAdapter 触摸→鼠标事件适配
 ```
 
 ---
 
-## 下一步：Phase 3 剩余
+## 下一步：Phase 4 - 与 Linux 服务端联调
 
-**目标**: 实现完整可玩的游戏操作，包括移动、拾取、放下、聊天
+**目标**: 完成完整游戏流程（登录→出生→移动→交互→死亡）
 
-### Task 3.4 - P3 完整流程验证 ⭐
+### 当前状态
+- 网络连通已验证（模拟器 nc 10.0.2.2:8005 收到 SN 响应）
+- UI 正常显示，登录界面可交互
+- 需要完成：创建账号 → 登录 → 进入游戏世界
 
-- 配置 `customServerAddress.ini` 等指向本地 Linux 服务端
-- 启动客户端，点击进入登录界面
-- 软键盘输入账号密码
-- 验证登录成功、角色出生、行走、拾取
-- 如发现 bug 记录在 `android/PHASE4-BUGS.md` 并逐个修复
+### 待解决
+- 确认 OneLife 的账号创建流程在 Android 上是否正常工作
+- 验证 socket API（openSocketConnection 等）在实际游戏流程中的表现
+- 可能需要调试 DNS 解析（如果客户端尝试解析域名而非直接用 IP）
 
 ### Task 3.4 - P3 验证（能进入登录界面并输入）
 
