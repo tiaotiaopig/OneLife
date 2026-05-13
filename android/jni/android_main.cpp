@@ -37,6 +37,7 @@ struct AppState {
     int  width  = 0;
     int  height = 0;
     bool platformInitialized = false;  // gameSource 是否已启动
+    bool paused = false;               // 后台暂停（停止渲染，节省电池）
 };
 
 static int initEGL(struct android_app* app, AppState* s) {
@@ -139,6 +140,14 @@ static void onAppCmd(struct android_app* app, int32_t cmd) {
             }
             termEGL(s);
             break;
+        case APP_CMD_PAUSE:
+            LOGI("App paused — stopping render loop");
+            s->paused = true;
+            break;
+        case APP_CMD_RESUME:
+            LOGI("App resumed — restarting render loop");
+            s->paused = false;
+            break;
         default:
             break;
     }
@@ -159,8 +168,9 @@ extern "C" void android_main(struct android_app* app) {
     while (true) {
         int events;
         struct android_poll_source* source;
-        while (ALooper_pollAll(state.display == EGL_NO_DISPLAY ? -1 : 0,
-                               nullptr, &events, (void**)&source) >= 0) {
+        // 暂停或无 display 时阻塞等待事件（-1），否则非阻塞（0）
+        int timeout = (state.paused || state.display == EGL_NO_DISPLAY) ? -1 : 0;
+        while (ALooper_pollAll(timeout, nullptr, &events, (void**)&source) >= 0) {
             if (source) source->process(app, source);
             if (app->destroyRequested) {
                 if (state.platformInitialized) {
@@ -171,11 +181,12 @@ extern "C" void android_main(struct android_app* app) {
                 LOGI("OneLife Android exiting");
                 return;
             }
+            // 内层循环也用同样的 timeout（暂停时持续阻塞）
+            timeout = (state.paused || state.display == EGL_NO_DISPLAY) ? -1 : 0;
         }
-        if (state.platformInitialized) {
+        if (state.platformInitialized && !state.paused) {
             tickGame(&state);
-        } else if (state.display != EGL_NO_DISPLAY) {
-            // EGL 就绪但 platform 还没初始化 —— 兜底清屏
+        } else if (state.display != EGL_NO_DISPLAY && !state.paused) {
             drawFrameFallback(&state);
         }
     }
