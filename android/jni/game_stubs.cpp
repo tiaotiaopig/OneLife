@@ -664,9 +664,44 @@ void quitGame() {
 }
 
 // game.h - 坐标转换（屏幕 → 世界）
+// Android：把物理像素坐标映射到逻辑坐标系（OneLife 1280×720 居中），
+// 与 gameSDL.cpp 的 mouseWorldCoordinates=true 分支语义一致：
+//   x = (px - sw/2) / sw,  y = -(py - sh/2) / sw    (归一化)
+//   x = x * viewSize + viewCenterX
+// gameSDL 用 viewSize（默认 2.0）和 viewCenterX/Y（视图中心）。
+// 这里我们简化：先把物理像素映射到逻辑像素，
+// 再让 gameSource 自己用既有相机系统做世界坐标变换。
+extern "C" {
+    int onelifeAndroidGetPhysicalWidth();
+    int onelifeAndroidGetPhysicalHeight();
+}
+
+namespace minorGemsAndroid {
+    int getPhysicalWidth();
+    int getPhysicalHeight();
+    int getLogicalWidth();
+    int getLogicalHeight();
+}
+
 void screenToWorld( int inX, int inY, float *outX, float *outY ) {
-    if( outX ) *outX = (float)inX;
-    if( outY ) *outY = (float)inY;
+    int physW = minorGemsAndroid::getPhysicalWidth();
+    int physH = minorGemsAndroid::getPhysicalHeight();
+    int logiW = minorGemsAndroid::getLogicalWidth();
+    int logiH = minorGemsAndroid::getLogicalHeight();
+
+    if( physW <= 0 || physH <= 0 || logiW <= 0 || logiH <= 0 ) {
+        // 还没初始化，原样返回
+        if( outX ) *outX = (float)inX;
+        if( outY ) *outY = (float)inY;
+        return;
+    }
+
+    // 物理像素 → 逻辑像素（按比例线性映射）
+    float lx = (float)inX * (float)logiW / (float)physW;
+    float ly = (float)inY * (float)logiH / (float)physH;
+
+    if( outX ) *outX = lx;
+    if( outY ) *outY = ly;
 }
 
 // game.h - 音效淡出
