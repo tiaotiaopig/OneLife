@@ -80,7 +80,6 @@ static void termEGL(AppState* s) {
 }
 
 // 每帧调用：把控制权交给 gameSource 的 drawFrame，再 swapBuffers。
-// 不再 glClearColor —— gameSource 内部会清屏并渲染。
 static void tickGame(AppState* s) {
     if (s->display == EGL_NO_DISPLAY) return;
     static int frameCount = 0;

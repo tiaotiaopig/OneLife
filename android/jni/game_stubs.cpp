@@ -7,9 +7,16 @@
 
 #include <stdint.h>
 #include <android/log.h>
+#include <GLES/gl.h>
 
 // Phase 3 Task 3.2：软键盘控制（供 TextField.cpp 调用）
 #include "SoftKeyboard.h"
+
+// Phase 3 Task 3.3/3.4：GL 投影矩阵 + 坐标转换需要物理屏幕尺寸
+namespace minorGemsAndroid {
+    int getPhysicalWidth();
+    int getPhysicalHeight();
+}
 
 extern "C" void onelifeAndroidShowSoftKeyboard() {
     onelife::SoftKeyboard::show();
@@ -352,14 +359,62 @@ float getDrawFade() {
     return 1.0f;
 }
 
+// ============================================================================
+// GL 投影矩阵 + 视图管理（参考 gameSDL.cpp 的 redoDrawMatrix）
+// ============================================================================
+static float gViewSize = 2.0f;
+static float gVisibleWidth = -1.0f;
+static float gVisibleHeight = -1.0f;
+static float gViewCenterX = 0.0f;
+static float gViewCenterY = 0.0f;
+static char gMouseWorldCoordinates = false;
+
+static void redoDrawMatrix() {
+    float hRadius = gViewSize / 2;
+    float wRadius = hRadius;
+
+    if (gVisibleHeight > 0) {
+        wRadius = gVisibleWidth / 2;
+        hRadius = gVisibleHeight / 2;
+    }
+
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    glOrthof(gViewCenterX - wRadius, gViewCenterX + wRadius,
+             gViewCenterY - hRadius, gViewCenterY + hRadius, -1.0f, 1.0f);
+
+    if (gVisibleHeight > 0) {
+        int screenWidth  = minorGemsAndroid::getPhysicalWidth();
+        int screenHeight = minorGemsAndroid::getPhysicalHeight();
+
+        float portWide = (float)screenWidth;
+        float portHigh = (gVisibleHeight / gVisibleWidth) * portWide;
+
+        float screenHeightFraction = (float)screenHeight / (float)screenWidth;
+        if (screenHeightFraction < 9.0f / 16.0f) {
+            portHigh = (float)screenHeight;
+            portWide = (gVisibleWidth / gVisibleHeight) * portHigh;
+        }
+
+        float excessW = screenWidth - portWide;
+        float excessH = screenHeight - portHigh;
+
+        glViewport((int)(excessW / 2), (int)(excessH / 2),
+                   (int)portWide, (int)portHigh);
+    }
+
+    glMatrixMode(GL_MODELVIEW);
+}
+
 // game.h - 视图中心位置
 void setViewCenterPosition(float inX, float inY) {
-    // stub: 设置视图中心（无操作）
+    gViewCenterX = inX;
+    gViewCenterY = inY;
+    redoDrawMatrix();
 }
 
 doublePair getViewCenterPosition() {
-    // stub: 返回原点
-    doublePair p = { 0.0, 0.0 };
+    doublePair p = { (double)gViewCenterX, (double)gViewCenterY };
     return p;
 }
 
@@ -664,44 +719,26 @@ void quitGame() {
 }
 
 // game.h - 坐标转换（屏幕 → 世界）
-// Android：把物理像素坐标映射到逻辑坐标系（OneLife 1280×720 居中），
-// 与 gameSDL.cpp 的 mouseWorldCoordinates=true 分支语义一致：
-//   x = (px - sw/2) / sw,  y = -(py - sh/2) / sw    (归一化)
-//   x = x * viewSize + viewCenterX
-// gameSDL 用 viewSize（默认 2.0）和 viewCenterX/Y（视图中心）。
-// 这里我们简化：先把物理像素映射到逻辑像素，
-// 再让 gameSource 自己用既有相机系统做世界坐标变换。
-extern "C" {
-    int onelifeAndroidGetPhysicalWidth();
-    int onelifeAndroidGetPhysicalHeight();
-}
-
-namespace minorGemsAndroid {
-    int getPhysicalWidth();
-    int getPhysicalHeight();
-    int getLogicalWidth();
-    int getLogicalHeight();
-}
+// 参考 gameSDL.cpp 的 screenToWorld（mouseWorldCoordinates=true 分支）
 
 void screenToWorld( int inX, int inY, float *outX, float *outY ) {
-    int physW = minorGemsAndroid::getPhysicalWidth();
-    int physH = minorGemsAndroid::getPhysicalHeight();
-    int logiW = minorGemsAndroid::getLogicalWidth();
-    int logiH = minorGemsAndroid::getLogicalHeight();
+    if (gMouseWorldCoordinates) {
+        namespace mga = minorGemsAndroid;
+        int screenWidth  = mga::getPhysicalWidth();
+        int screenHeight = mga::getPhysicalHeight();
+        if (screenWidth <= 0) screenWidth = 640;
+        if (screenHeight <= 0) screenHeight = 320;
 
-    if( physW <= 0 || physH <= 0 || logiW <= 0 || logiH <= 0 ) {
-        // 还没初始化，原样返回
-        if( outX ) *outX = (float)inX;
-        if( outY ) *outY = (float)inY;
-        return;
+        // 相对于屏幕中心，viewSize 在 screenWidth 上展开
+        float x = (float)(inX - (screenWidth / 2)) / (float)screenWidth;
+        float y = -(float)(inY - (screenHeight / 2)) / (float)screenWidth;
+
+        *outX = x * gViewSize + gViewCenterX;
+        *outY = y * gViewSize + gViewCenterY;
+    } else {
+        if (outX) *outX = (float)inX;
+        if (outY) *outY = (float)inY;
     }
-
-    // 物理像素 → 逻辑像素（按比例线性映射）
-    float lx = (float)inX * (float)logiW / (float)physW;
-    float ly = (float)inY * (float)logiH / (float)physH;
-
-    if( outX ) *outX = lx;
-    if( outY ) *outY = ly;
 }
 
 // game.h - 音效淡出
@@ -822,11 +859,13 @@ void toggleTransparentCropping( char inCrop ) {
 
 // game.h - 视图大小 / 信箱
 void setViewSize( float inSize ) {
-    (void)inSize;
+    gViewSize = inSize;
 }
 
 void setLetterbox( float inVisibleWidth, float inVisibleHeight ) {
-    (void)inVisibleWidth; (void)inVisibleHeight;
+    gVisibleWidth = inVisibleWidth;
+    gVisibleHeight = inVisibleHeight;
+    redoDrawMatrix();
 }
 
 // game.h - 光标 / 输入
@@ -839,7 +878,7 @@ void grabInput( char inGrabOn ) {
 }
 
 void setMouseReportingMode( char inWorldCoordinates ) {
-    (void)inWorldCoordinates;
+    gMouseWorldCoordinates = inWorldCoordinates;
 }
 
 void getLastMouseScreenPos( int *outX, int *outY ) {

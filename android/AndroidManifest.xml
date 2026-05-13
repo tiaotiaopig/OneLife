@@ -13,6 +13,7 @@
         android:label="OneLife"
         android:icon="@mipmap/ic_launcher"
         android:hasCode="false"
+        android:debuggable="true"
         android:allowBackup="false">
 
         <activity
