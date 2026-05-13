@@ -794,17 +794,15 @@ int openSocketConnection( const char *inNumericalAddress, int inPort ) {
     r.handle = sCppNextHandle++;
     HostAddress addr( stringDuplicate( inNumericalAddress ), inPort );
     char timedOut = false;
-    // 用 5 秒超时的阻塞连接（timeout=0 的非阻塞模式在模拟器上有问题）
-    r.sock = SocketClient::connectToServer( &addr, 5000, &timedOut );
+    // timeout=0：非阻塞 connect，与 gameSDL.cpp 保持一致
+    // 调用方通过 isConnected() 轮询连接状态
+    r.sock = SocketClient::connectToServer( &addr, 0, &timedOut );
     if( r.sock != NULL ) {
         sCppSocketRecords.push_back( r );
-        __android_log_print(ANDROID_LOG_INFO, "OneLife",
-            "openSocketConnection: handle=%d timedOut=%d isConnected=%d",
-            r.handle, (int)timedOut, r.sock->isConnected());
         return r.handle;
     }
     __android_log_print(ANDROID_LOG_ERROR, "OneLife",
-        "openSocketConnection: FAILED (sock=NULL, timedOut=%d)", (int)timedOut);
+        "openSocketConnection: FAILED (sock=NULL)");
     return -1;
 }
 
