@@ -221,6 +221,41 @@ $ADB logcat -s 'OneLifeGame:V' -t 50
 
 ---
 
+## 分支管理
+
+### 策略：独立分支 + 定期 merge 上游
+
+OneLife 是开源项目（原作者 Jason Rohrer 持续更新），Android 适配作为独立分支维护，
+定期 merge 上游 master 获取新功能和 bug 修复。
+
+| 仓库 | 上游分支 | Android 分支 | 冲突面 |
+|------|----------|-------------|--------|
+| OneLife | `master` | `android-client` | 极小（95% 改动在 `android/` 新目录） |
+| minorGems | `master` | `android-port` | 小（新增文件为主，仅 glInclude.h + File.h 有改动） |
+
+### 同步上游更新
+
+```bash
+# OneLife
+git checkout master
+git pull origin master          # 拉取上游更新
+git checkout android-client
+git merge master                # 合入上游更新
+
+# minorGems
+cd ../minorGems-android-port
+git fetch origin master
+git merge origin/master         # 合入上游更新
+```
+
+### 冲突风险点
+
+- `gameSource/TextField.cpp`：5 行 `#ifdef __ANDROID__` 改动
+- `minorGems/graphics/openGL/glInclude.h`：增加 `__ANDROID__` 分支
+- `minorGems/io/file/File.h`：AAsset 回退逻辑
+
+---
+
 ## 相关文档
 
 - **详细计划**: `docs/superpowers/plans/2026-05-11-android-client-plan.md`
