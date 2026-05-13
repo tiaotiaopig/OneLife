@@ -1,10 +1,10 @@
 # OneLife Android 客户端开发进度
 
-> 最后更新：2025-05-12 20:06
+> 最后更新：2026-05-13 11:30
 
 ## 当前状态
 
-**Phase 3 进行中** 🔄 - Task 3.1 TouchInputAdapter 已完成
+**Phase 3 进行中** 🔄 - Task 3.1/3.2/3.3 已完成
 
 ### 关键指标
 
@@ -13,11 +13,34 @@
 - **游戏启动**: "OneLife client v437 (binV=436, dataV=437) starting up"
 - **资源加载**: 0 个 Failed/ERROR/CRITICAL 错误
 - **渲染**: 60 FPS 稳定，EGL + GLES 1.x 正常工作
-- **触摸**: tap / drag / 长按 / 双指 Shift 均正确识别，gameSource 收到 pointer 事件
+- **逻辑分辨率**: 物理 640×320 → 逻辑 1440×720（按 OneLife 1280×720 + 物理比例校正）
+- **触摸**: tap / drag / 长按 / 双指 Shift 均正确识别，映射到逻辑坐标
+- **软键盘**: TextField 焦点变化自动 show/hide，键盘输入映射到 keyDown/keyUp
 
 ### 最近完成的工作
 
-#### Phase 3.1 - TouchInputAdapter（2025-05-12）
+#### Phase 3.3 - DPI 适配（2026-05-13）
+- **问题**: platformInit 直接把 EGL 物理像素（640×320）传给 initFrameDrawer，
+  导致 gameSource 把 UI 当 640×320 绘制；若换成 1080p 真机 UI 又会过小
+- **方案**:
+  - `gameAndroid.cpp` 的 `platformInit` 调用 `doesOverrideGameImageSize()` 查
+    gameSource 期望的逻辑分辨率（OneLife 是 1280×720）
+  - 按物理屏幕宽高比调整逻辑尺寸避免拉伸（640×320 → 逻辑 1440×720）
+  - 对外暴露 `getPhysicalWidth/Height`、`getLogicalWidth/Height`
+  - `screenToWorld` stub 按比例线性映射物理→逻辑
+- **效果**: logcat 看到 `platformInit physical=640x320 logical=1440x720`，
+  60 FPS 稳定，触摸坐标在 gameSource 侧是逻辑空间
+
+#### Phase 3.2 - 软键盘 + KEY 事件映射（2026-05-13）
+- **目标**: TextField 焦点变化自动弹键盘，键盘输入送到 gameSource
+- **实现**:
+  - 新增 `android/jni/SoftKeyboard.{h,cpp}`：包装 `ANativeActivity_showSoftInput/hide`
+  - `android_main.cpp` 保存全局 `android_app*` 并通过 `onelifeAndroidGetApp()` 暴露
+  - `TouchInputAdapter::handleKey` 把 AKEYCODE 映射到 ASCII（A-Z/0-9/常用符号 + Shift）
+  - `TextField::focus/unfocus` `#ifdef __ANDROID__` 调软键盘接口
+- **效果**: APK 76MB 构建成功，部署到模拟器启动正常
+
+#### Phase 3.1 - TouchInputAdapter（2026-05-13）
 - **目标**: 让 gameSource 的 pointerDown/Move/Drag/Up 拿到触摸事件
 - **实现**:
   - 新增 `android/jni/TouchInputAdapter.{h,cpp}`：AInputEvent → 鼠标事件翻译
@@ -58,31 +81,24 @@
 ### 最近 3 个提交
 
 ```
+5d152d71 feat(android): screenToWorld 物理像素→逻辑坐标映射
+e451075d feat(android): 软键盘支持 + KEY 事件映射
 2c6fc219 feat(android): TouchInputAdapter 触摸→鼠标事件适配
-3be56c21 docs(android): 添加开发进度文档 PROGRESS.md
-c5d4ff65 build(android): 支持本地硬盘构建目录，加速 17x
 ```
 
 ---
 
-## 下一步：Phase 3 继续
+## 下一步：Phase 3 剩余
 
 **目标**: 实现完整可玩的游戏操作，包括移动、拾取、放下、聊天
 
-### Task 3.2 - 软键盘（输入账号密码）⭐
+### Task 3.4 - P3 完整流程验证 ⭐
 
-**为什么先做这个**:
-- 没有键盘就没法登录，后续所有联网测试都卡在这
-- 相对独立，改动集中在 jni + TextField
-
-**实现计划**:
-1. 新增 `android/jni/SoftKeyboard.{h,cpp}`：包装 `ANativeActivity_showSoftInput/hide`
-2. TextField.cpp 焦点变化时 `#ifdef __ANDROID__` 调用
-3. `TouchInputAdapter::handle` 增加 `AINPUT_EVENT_TYPE_KEY` 分支，把 AKEYCODE 映射到 ASCII 调 `keyDown/keyUp`
-
-### Task 3.3 - DPI 适配（640×320 太小）
-
-目前模拟器跑 640×320，按钮在触摸下很难精准点中。需要让 gameSource 用 1280×720 逻辑分辨率 + GL viewport 缩放。
+- 配置 `customServerAddress.ini` 等指向本地 Linux 服务端
+- 启动客户端，点击进入登录界面
+- 软键盘输入账号密码
+- 验证登录成功、角色出生、行走、拾取
+- 如发现 bug 记录在 `android/PHASE4-BUGS.md` 并逐个修复
 
 ### Task 3.4 - P3 验证（能进入登录界面并输入）
 
@@ -121,7 +137,9 @@ OneLife Android APK (76MB)
 │       ├── android_main.cpp - NativeActivity 入口 ✅
 │       ├── EGLContext - EGL 管理 ✅
 │       ├── AssetFileBridge - AAsset 注入 ✅
-│       └── game_stubs.cpp - 手动 TGA 解析器 ✅
+│       ├── TouchInputAdapter - 触摸/键盘事件 ✅
+│       ├── SoftKeyboard - 软键盘控制 ✅
+│       └── game_stubs.cpp - stub + 坐标映射 ✅
 └── assets/ (69MB)
     ├── sprites/ (19,865 个资源文件) ✅
     ├── sounds/
@@ -166,7 +184,9 @@ $ADB logcat -s 'OneLifeGame:V' -t 50
 - [x] 所有 UI 图标加载成功（0 个 Failed 错误）
 - [x] 60 FPS 稳定渲染
 - [x] 触摸屏幕有响应（Task 3.1）
-- [ ] 能进入登录界面（Task 3.2-3.4）
+- [x] 逻辑分辨率切到 1440×720 + 坐标映射（Task 3.3）
+- [x] TextField 焦点触发软键盘（Task 3.2，接口已通，实际流程 Task 3.4 验证）
+- [ ] 能进入登录界面并输入账号密码（Task 3.4）
 - [ ] 能连接服务器（Phase 4）
 
 ---
