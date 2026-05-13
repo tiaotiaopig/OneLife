@@ -67,6 +67,11 @@ void logStartupInfo(struct android_app* app) {
              orient == ACONFIGURATION_ORIENTATION_PORT ? "portrait" :
              orient == ACONFIGURATION_ORIENTATION_LAND ? "landscape" : "any");
         LOGI("  语言: %s", lang[0] ? lang : "unknown");
+
+        // DPI 自适应建议（真机高分屏 UI 可能过小）
+        if (density >= 480) {
+            LOGW("  高分屏设备（xxhdpi+）：UI 元素可能偏小，建议后续实现 DPI 缩放");
+        }
     }
 
     // 物理窗口尺寸
