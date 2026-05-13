@@ -788,6 +788,12 @@ namespace {
 }
 
 int openSocketConnection( const char *inNumericalAddress, int inPort ) {
+    if (!inNumericalAddress || inPort <= 0) {
+        __android_log_print(ANDROID_LOG_ERROR, "OneLife",
+            "openSocketConnection: invalid params (addr=%p, port=%d)",
+            inNumericalAddress, inPort);
+        return -1;
+    }
     __android_log_print(ANDROID_LOG_INFO, "OneLife",
         "openSocketConnection: %s:%d", inNumericalAddress, inPort);
     SockRecord r;
@@ -807,10 +813,11 @@ int openSocketConnection( const char *inNumericalAddress, int inPort ) {
 }
 
 int sendToSocket( int inHandle, unsigned char *inData, int inDataLength ) {
+    if (!inData || inDataLength <= 0) return -1;
     for( int i = 0; i < sCppSocketRecords.size(); i++ ) {
         SockRecord *r = sCppSocketRecords.getElement( i );
         if( r->handle == inHandle ) {
-            if( r->sock->isConnected() ) {
+            if( r->sock && r->sock->isConnected() ) {
                 int n = r->sock->send( inData, inDataLength, false, false );
                 return ( n == -2 ) ? 0 : n;
             }
@@ -821,10 +828,11 @@ int sendToSocket( int inHandle, unsigned char *inData, int inDataLength ) {
 }
 
 int readFromSocket( int inHandle, unsigned char *inDataBuffer, int inBytesToRead ) {
+    if (!inDataBuffer || inBytesToRead <= 0) return -1;
     for( int i = 0; i < sCppSocketRecords.size(); i++ ) {
         SockRecord *r = sCppSocketRecords.getElement( i );
         if( r->handle == inHandle ) {
-            if( r->sock->isConnected() == 1 ) {
+            if( r->sock && r->sock->isConnected() == 1 ) {
                 int n = r->sock->receive( inDataBuffer, inBytesToRead, 0 );
                 return ( n == -2 ) ? 0 : n;
             }
@@ -838,7 +846,7 @@ void closeSocket( int inHandle ) {
     for( int i = 0; i < sCppSocketRecords.size(); i++ ) {
         SockRecord *r = sCppSocketRecords.getElement( i );
         if( r->handle == inHandle ) {
-            delete r->sock;
+            if (r->sock) delete r->sock;
             sCppSocketRecords.deleteElement( i );
             return;
         }
