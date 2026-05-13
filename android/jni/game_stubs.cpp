@@ -723,9 +723,8 @@ void quitGame() {
 
 void screenToWorld( int inX, int inY, float *outX, float *outY ) {
     if (gMouseWorldCoordinates) {
-        namespace mga = minorGemsAndroid;
-        int screenWidth  = mga::getPhysicalWidth();
-        int screenHeight = mga::getPhysicalHeight();
+        int screenWidth  = minorGemsAndroid::getPhysicalWidth();
+        int screenHeight = minorGemsAndroid::getPhysicalHeight();
         if (screenWidth <= 0) screenWidth = 640;
         if (screenHeight <= 0) screenHeight = 320;
 
@@ -738,6 +737,14 @@ void screenToWorld( int inX, int inY, float *outX, float *outY ) {
     } else {
         if (outX) *outX = (float)inX;
         if (outY) *outY = (float)inY;
+    }
+    static int logCount = 0;
+    if (logCount < 10) {
+        __android_log_print(ANDROID_LOG_INFO, "OneLife",
+            "screenToWorld(%d,%d) worldCoord=%d viewSize=%.0f → (%.1f, %.1f)",
+            inX, inY, (int)gMouseWorldCoordinates, gViewSize,
+            outX ? *outX : -999, outY ? *outY : -999);
+        logCount++;
     }
 }
 
@@ -789,15 +796,23 @@ namespace {
 }
 
 int openSocketConnection( const char *inNumericalAddress, int inPort ) {
+    __android_log_print(ANDROID_LOG_INFO, "OneLife",
+        "openSocketConnection: %s:%d", inNumericalAddress, inPort);
     SockRecord r;
     r.handle = sCppNextHandle++;
     HostAddress addr( stringDuplicate( inNumericalAddress ), inPort );
     char timedOut = false;
-    r.sock = SocketClient::connectToServer( &addr, 0, &timedOut );
+    // 用 5 秒超时的阻塞连接（timeout=0 的非阻塞模式在模拟器上有问题）
+    r.sock = SocketClient::connectToServer( &addr, 5000, &timedOut );
     if( r.sock != NULL ) {
         sCppSocketRecords.push_back( r );
+        __android_log_print(ANDROID_LOG_INFO, "OneLife",
+            "openSocketConnection: handle=%d timedOut=%d isConnected=%d",
+            r.handle, (int)timedOut, r.sock->isConnected());
         return r.handle;
     }
+    __android_log_print(ANDROID_LOG_ERROR, "OneLife",
+        "openSocketConnection: FAILED (sock=NULL, timedOut=%d)", (int)timedOut);
     return -1;
 }
 
@@ -819,11 +834,19 @@ int readFromSocket( int inHandle, unsigned char *inDataBuffer, int inBytesToRead
     for( int i = 0; i < sCppSocketRecords.size(); i++ ) {
         SockRecord *r = sCppSocketRecords.getElement( i );
         if( r->handle == inHandle ) {
-            if( r->sock->isConnected() ) {
+            int connected = r->sock->isConnected();
+            static int readLogCount = 0;
+            if (readLogCount < 5) {
+                __android_log_print(ANDROID_LOG_INFO, "OneLife",
+                    "readFromSocket: handle=%d isConnected=%d", inHandle, connected);
+                readLogCount++;
+            }
+            if( connected == 1 ) {
                 int n = r->sock->receive( inDataBuffer, inBytesToRead, 0 );
                 return ( n == -2 ) ? 0 : n;
             }
-            return -1;
+            // 非阻塞连接尚未完成：返回 0（暂无数据），不是 -1（错误）
+            return 0;
         }
     }
     return -1;
