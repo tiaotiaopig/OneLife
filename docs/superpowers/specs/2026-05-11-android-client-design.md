@@ -227,3 +227,33 @@ adb install android/build/OneLife-debug.apk
 - 触屏专属 UI（虚拟摇杆、动作按钮）
 - iOS 移植
 - Google Play 发布流程
+
+---
+
+## 实施结果（2026-05-13 补充）
+
+P0-P4 已完成，P5 部分完成（后台暂停 + 非阻塞连接）。以下记录实际实现与原设计的差异。
+
+### 设计偏差
+
+| 原设计 | 实际实现 | 原因 |
+|--------|----------|------|
+| GameBackend 抽象 + NetworkBackend 重构 LivingLifePage 30 处调用 | 未实现，直接在 game_stubs.cpp 中提供 socket API（openSocketConnection/sendToSocket/readFromSocket/closeSocket） | gameSource 的 socket 调用通过 game.h 声明的 4 个函数统一入口，无需额外抽象层即可工作 |
+| minorGems 用 worktree 隔离 | 改为普通分支切换（`git checkout android-port`） | worktree 在多机同步时路径不稳定，分支切换更简单 |
+| 触摸长按 → 转换为右键 down 事件 | 长按 → pointerUp 时置 isLastMouseButtonRight=true | gameSource 在 pointerUp 时检查 isLastMouseButtonRight，不需要额外的 right-down 事件 |
+| OpenSLAudio 在 OneLife/android/jni/ | OpenSLAudioBackend 在 minorGems/sound/android/ | 音频后端属于 minorGems 平台层职责 |
+| DPI 适配通过 initFrameDrawer 传逻辑分辨率 | 由 game_stubs.cpp 的 redoDrawMatrix() 设置 GL 正交投影处理 | gameSource 自身通过 setViewSize/setLetterbox 控制投影，直接实现这些函数即可 |
+
+### 额外发现的问题及修复
+
+| 问题 | 根因 | 修复 |
+|------|------|------|
+| UI 全黑 | setViewSize/setLetterbox/setViewCenterPosition 是空 stub，GL 投影矩阵从未设置 | 实现 redoDrawMatrix()（参考 gameSDL.cpp） |
+| 登录按钮不显示 | ExistingAccountPage 的 FPS 测量在 targetFrameRate 未设置时永远失败 | default_settings 加 skipFPSMeasure=1 + targetFrameRate=60 |
+| Socket 连接失败 | readFromSocket 在非阻塞连接未完成时返回 -1（错误）而非 0（暂无数据） | 未连接时返回 0 |
+| screenToWorld 坐标偏移 | viewSize 被 gameSource 调整为 1440（屏幕比 16:9 更宽时 viewWidth 会拉宽） | 正确实现 screenToWorld 的 mouseWorldCoordinates=true 分支 |
+
+### 最终文件结构（与原设计对比）
+
+原设计中的 `AndroidPlatform.cpp/.h` 简化为仅保存全局 `android_app*` 指针；`EGLContext.cpp/.h` 的功能内联到 `android_main.cpp`（initEGL/termEGL 静态函数）。新增了原设计未预见的 `game_stubs.cpp`（~30 个 gameSDL.cpp 中由 ScreenGL 提供的函数在 Android 上需要独立实现）。
+

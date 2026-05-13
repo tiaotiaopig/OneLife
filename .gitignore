@@ -53,3 +53,9 @@ android/assets/faces
 android/assets/scenes
 android/assets/overlays
 android/assets/graphics
+server/biomeRandSeed.txt
+server/evePlacementLog.txt
+server/familyDataLog.txt
+server/foodLogDetail/
+server/curseLog/
+server/mapChangeLogs/
