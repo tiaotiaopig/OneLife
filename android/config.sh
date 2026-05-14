@@ -24,7 +24,9 @@ if [[ -z "${ANDROID_SDK_ROOT:-}" ]]; then
     fi
 fi
 export ANDROID_API_LEVEL=29
-export ANDROID_ABIS="arm64-v8a armeabi-v7a x86_64"  # build.sh 会遍历此列表编译多 ABI（x86_64 用于模拟器）
+# build.sh 会遍历此列表编译多 ABI（x86_64 用于模拟器）。
+# 可通过外部环境变量覆盖，例如真机出包用 ANDROID_ABIS="arm64-v8a" ./build.sh release
+export ANDROID_ABIS="${ANDROID_ABIS:-arm64-v8a armeabi-v7a x86_64}"
 export ANDROID_BUILD_TOOLS_VERSION=33.0.2
 
 # 构建目录：优先用本地硬盘 /data1/（避免 JuiceFS 小文件 I/O 瓶颈，aapt 打包加速 ~15-20x）

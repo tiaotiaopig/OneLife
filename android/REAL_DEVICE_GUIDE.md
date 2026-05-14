@@ -1,409 +1,399 @@
-# OneLife Android 真机试玩指南
+# 真机联调指南
 
-> 版本：2025-05-13  
-> 状态：✅ 真机准备完成（Phase 0-4 + 真机优化）
+> 把 OneLife Android APK 装到真实手机上，连到本机服务端进行联调。
+> 适用对象：开发/测试。最终发布流程见 `Phase 5.5: Google Play`（待办）。
 
----
+## 总体步骤
 
-## 前置条件
-
-### 硬件要求
-- **Android 版本**：10+（API 29+）
-- **架构**：arm64-v8a / armeabi-v7a / x86_64
-- **内存**：建议 4GB+
-- **存储**：至少 200MB 可用空间（APK 76MB + 内部数据 ~100MB）
-- **屏幕**：横屏设备或支持横屏旋转
-
-### 软件要求
-- **开发者模式**：已启用
-- **USB 调试**：已开启
-- **adb**：已安装并能连接设备
-
----
-
-## 快速开始
-
-### 1. 连接设备
-
-```bash
-# 确认设备连接
-adb devices
-# 应显示：
-# List of devices attached
-# <设备序列号>    device
+```
+┌─────────┐         ┌─────────┐         ┌──────────────┐
+│ 真机    │  WiFi   │ 路由器  │  局域网 │ 服务端宿主机 │
+│ APK     │ ──────► │         │ ──────► │ OneLifeServer│
+└─────────┘         └─────────┘         └──────────────┘
+     ▲                                          │
+     │ adb install                              │
+     └────────────  USB / WiFi adb  ────────────┘
+                  （开发电脑）
 ```
 
-### 2. 安装 APK
+本文档假设你有**三台设备**或角色：
+
+1. **构建机**（当前 Linux 容器，`172.17.0.6`）—— 编译 APK、跑服务端
+2. **真机**（Android 10+，arm64-v8a，安装 APK 玩游戏）
+3. **物理电脑**（可选，用于 USB adb 连接真机）—— 如果构建机直接能连真机也可省略
+
+---
+
+## Step 1. 选择网络拓扑
+
+手机要能访问服务端的 8005 端口。根据你的环境选一个方案：
+
+### 方案 A. 构建机有真实局域网 IP（最简单）
+
+如果 `ip -4 addr` 看到 `192.168.x.x` 或 `10.x.x.x`（路由器分配的内网地址）：
+
+- 手机连同一 WiFi
+- 客户端 `customServerAddress` 填这个 IP
+- 跳到 Step 2
+
+### 方案 B. 构建机在 Docker / 虚拟机内（本项目当前情况）
+
+构建机 IP 是 `172.17.0.6`，手机无法直接访问。需要把服务端**通过宿主物理机暴露到局域网**。
+
+选一种：
+
+**B.1 端口转发（推荐，需要 root 物理机）**
+
+在 Docker 宿主机上：
+```bash
+# 把宿主机 8005 端口转发到容器 8005
+iptables -t nat -A PREROUTING -p tcp --dport 8005 -j DNAT \
+    --to-destination 172.17.0.6:8005
+iptables -A FORWARD -p tcp -d 172.17.0.6 --dport 8005 -j ACCEPT
+```
+或重启容器时加 `-p 8005:8005`。
+
+手机连接到**宿主物理机的局域网 IP**，端口 8005。
+
+**B.2 SSH 反向隧道（手机不通过路由器）**
+
+如果手机端能通过 USB 连开发电脑，直接用 adb reverse 把手机的 `localhost:8005` 映射到构建机的 `8005`：
+
+```bash
+# 在能 ssh 到构建机的电脑上：
+ssh -L 8005:172.17.0.6:8005 你的构建机
+# 然后在该电脑上：
+adb reverse tcp:8005 tcp:8005
+```
+
+手机客户端 `customServerAddress = 127.0.0.1`。
+
+**B.3 frp / ngrok 内网穿透**
+
+如果上面都不通且手机用蜂窝网络：
+```bash
+# frp 客户端（构建机）
+./frpc -t tcp -P 8005 --proxy_name onelife --remote_port 18005
+```
+手机客户端填 frp 公网入口的 IP + 端口。
+
+---
+
+## Step 2. 服务端准备
+
+### 启动服务端（如未启动）
+
+```bash
+cd /jfs/fengli16/Projects/CProjects/OneLife/dist/server-linux-x64
+./bin/OneLifeServer
+```
+
+确认监听：
+```bash
+ss -tlnp | grep 8005
+# 应看到 LISTEN ... 0.0.0.0:8005
+```
+
+### 服务端配置（关键）
+
+确认 `settings/` 下：
+```bash
+cd /jfs/fengli16/Projects/CProjects/OneLife/dist/server-linux-x64/settings
+cat port.ini                       # 8005
+cat requireTicketServerCheck.ini   # 0（不验证 ticket，本地测试用）
+cat requireClientPassword.ini      # 0 或 1
+cat clientPassword.ini             # 若上面为 1，这里是密码
+```
+
+> **注意**：默认 `requireTicketServerCheck=0`，意味着任何客户端都能连入。仅供局域网测试用，**不要暴露到公网**。
+
+### 验证服务端能响应
+
+```bash
+echo '' | nc -w 1 127.0.0.1 8005
+# 期望输出：SN ... 数字 ... 一串十六进制
+```
+
+看到 `SN` 开头的握手消息说明服务端正常。
+
+---
+
+## Step 3. 构建 arm64-v8a 单架构 APK
 
 ```bash
 cd /data1/fengli16/Projects/CProjects/OneLife/android
-adb install -r build/OneLife-debug.apk
+ANDROID_ABIS="arm64-v8a" ./build.sh release
+# 输出：build/OneLife-release.apk (72MB)
 ```
 
-期望输出：`Success`
+> **为什么单架构？**
+> - 默认三架构 APK 76MB（arm64 + armv7 + x86_64），其中 x86_64 仅模拟器需要
+> - 单 arm64-v8a 72MB，下载/安装快 5%
+> - 绝大多数 2018 年后的真机都是 arm64-v8a
 
-### 3. 配置服务器地址
-
-**方法 A：使用快捷脚本**（推荐）
-
+如果你的手机是老机型或 32 位 ARM：
 ```bash
-# 编辑 test_settings.sh 中的服务器 IP
-vim test_settings.sh
-# 修改 SERVER_IP="192.168.1.100" 为你的服务器局域网 IP
-
-# 一键配置
-./test_settings.sh
+ANDROID_ABIS="arm64-v8a armeabi-v7a" ./build.sh release
 ```
 
-**方法 B：手动配置**
+### 验证 APK
 
 ```bash
-# 替换 192.168.1.100 为你的服务器 IP
-SERVER_IP="192.168.1.100"
-
-adb shell run-as com.fengli.onelife sh -c "echo '$SERVER_IP' > files/settings/customServerAddress.ini"
-adb shell run-as com.fengli.onelife sh -c 'echo "8005" > files/settings/customServerPort.ini'
-adb shell run-as com.fengli.onelife sh -c 'echo "test123" > files/settings/serverPassword.ini'
-adb shell run-as com.fengli.onelife sh -c 'echo "1" > files/settings/useCustomServer.ini'
-adb shell run-as com.fengli.onelife sh -c 'echo "1" > files/settings/requireClientPassword.ini'
+source config.sh
+"$AAPT" dump badging build/OneLife-release.apk | grep -E "package|native-code"
+# package: name='com.fengli.onelife' ...
+# native-code: 'arm64-v8a'
 ```
 
-### 4. 启动并监控
+---
+
+## Step 4. 把 APK 传到真机
+
+选一种：
+
+### 方法 4.A：USB + adb（推荐）
+
+手机开**开发者选项 → USB 调试**，连 USB，开发电脑上：
 
 ```bash
-# 启动应用
+adb devices
+# 应看到你的手机序列号
+
+adb install -r OneLife-release.apk
+# 期望：Performing Streamed Install → Success
+```
+
+如果构建机不能直接连 USB，先把 APK 拷到开发电脑：
+```bash
+# 从构建机拷到本地
+scp 构建机:/data1/fengli16/Projects/CProjects/OneLife/android/build/OneLife-release.apk .
+```
+
+### 方法 4.B：HTTP 分发
+
+构建机上：
+```bash
+cd /data1/fengli16/Projects/CProjects/OneLife/android/build
+python3 -m http.server 8000
+```
+
+手机浏览器访问 `http://构建机IP:8000/OneLife-release.apk` 下载（需 Step 1 方案 A 网络可达）。
+
+下载后从手机文件管理器点击安装（系统会提示"未知来源"，需手动允许）。
+
+### 方法 4.C：云盘 / 邮件
+
+把 APK 上传网盘或发邮件给自己，手机下载安装。
+
+---
+
+## Step 5. 首次启动 + 配置服务端
+
+### 5.1 首次启动
+
+手机桌面找到 **OneLife** 图标（绿色方块占位图），点击。
+
+第一次启动需要 5-10 秒（解压资源、加载 sprite bank），看到登录界面（黄色 LOGIN 按钮）即成功。
+
+首次启动会自动生成 `/data/data/com.fengli.onelife/files/settings/` 目录，复制 77 个默认 `.ini` 文件。
+
+### 5.2 配置服务端地址
+
+**问题**：默认 `customServerAddress.ini` 是 `10.0.2.2`（Android 模拟器专用），真机需要改成实际服务端 IP。
+
+**方案 A：USB adb 改配置**
+
+```bash
+# SERVER_IP 替换为实际服务端地址（见 Step 1）
+SERVER_IP="192.168.1.10"
+
+adb shell "run-as com.fengli.onelife sh -c 'echo $SERVER_IP > /data/data/com.fengli.onelife/files/settings/customServerAddress.ini'"
+adb shell "run-as com.fengli.onelife sh -c 'echo 8005 > /data/data/com.fengli.onelife/files/settings/customServerPort.ini'"
+adb shell "run-as com.fengli.onelife sh -c 'echo 1    > /data/data/com.fengli.onelife/files/settings/useCustomServer.ini'"
+
+# 重启 app 应用配置
+adb shell am force-stop com.fengli.onelife
 adb shell am start -n com.fengli.onelife/android.app.NativeActivity
-
-# 实时查看日志（新终端）
-adb logcat -s OneLife:* OneLifeAudio:* OneLifeGame:* AndroidRuntime:E
 ```
+
+**方案 B：游戏内手动改（无 USB 时）**
+
+登录界面 →（暂无服务器输入框，需要先支持 Settings 页面，目前不可行）→ 退而求其次用方案 A。
+
+### 5.3 试登录
+
+登录界面：
+- **EMAIL** 字段：随便填如 `test@test.com`（local 服务端不验证）
+- **KEY** 字段：随便填如 `ABCDEFGHIJKLMNO`（15 位）
+- 点 **LOGIN** 按钮
+
+成功后看到游戏世界（地面 + 角色）即联调通过。
 
 ---
 
-## 诊断信息解读
+## Step 6. 调试与日志
 
-### 启动诊断（前 10 秒）
+### 实时查看客户端日志
 
-```
-=========================================
-OneLife Android 启动诊断
-=========================================
-  内核: Linux 4.14.190 (aarch64)
-  内存: 总 3840MB, 可用 1520MB
-  屏幕: 411dp x 731dp, density=420 (xxhdpi)
-  方向: landscape
-  语言: zh
-  窗口: 2340 x 1080 (format=4)
-  内部存储: /data/user/0/com.fengli.onelife/files
-=========================================
-EGL ready: 2340x1080
-OpenGL ES:
-  Vendor:   ARM
-  Renderer: Mali-G76
-  Version:  OpenGL ES 3.2 v1.r26p0-01rel0
-  MaxTexSize: 16384
-✓ OpenSL ES started: 44100 Hz stereo
-```
-
-**关键指标**：
-- **density >= 480**：高分屏，UI 可能偏小（会有警告）
-- **可用内存 < 1GB**：可能卡顿
-- **OpenSL ES 启动失败**：静音运行（不影响游戏）
-
-### 运行时诊断（每 5 秒）
-
-```
-FPS: 58.3 (min 15.2ms, max 18.9ms, frames=291/5.0s)
-```
-
-**性能标准**：
-- **FPS >= 50**：流畅 ✅
-- **FPS 30-50**：可玩 ⚠️
-- **FPS < 30**：卡顿 ❌（会有警告）
-- **max > 100ms**：有明显掉帧（会有警告）
-
-### 网络诊断
-
-```
-openSocketConnection: 192.168.1.100:8005
-readFromSocket: connection lost (handle=0)
-readFromSocket: not connected (handle=0)
-```
-
-**常见问题**：
-- `connection lost`：网络中断，检查 WiFi 信号
-- `not connected`：服务器未启动或地址错误
-- `FAILED (sock=NULL)`：DNS 解析失败或端口被占用
-
----
-
-## 操作指南
-
-### 触摸映射
-
-| 操作 | 桌面端 | Android 触摸 |
-|------|--------|-------------|
-| 左键点击 | 鼠标左键 | **单指点击** |
-| 右键点击 | 鼠标右键 | **长按 500ms** |
-| Shift+左键 | Shift+鼠标左键 | **双指点击** |
-| 拖拽 | 鼠标拖动 | **单指滑动** |
-
-### 游戏操作
-
-1. **移动**：点击目标位置
-2. **拾取物品**：长按物品（500ms）
-3. **放下物品**：长按空地
-4. **使用物品**：点击物品 A，再点击物品 B
-5. **聊天**：点击聊天框，软键盘自动弹出
-
-### 软键盘
-
-- **自动弹出**：点击文本框（邮箱/密码/聊天）
-- **手动关闭**：点击键盘外区域或按返回键
-- **支持按键**：字母、数字、空格、退格、回车
-
----
-
-## 常见问题
-
-### Q1: 安装失败 "INSTALL_FAILED_UPDATE_INCOMPATIBLE"
-
-**原因**：已安装旧版本，签名不一致
-
-**解决**：
+USB adb 连接时：
 ```bash
-adb uninstall com.fengli.onelife
-adb install build/OneLife-debug.apk
+adb logcat -s 'OneLife:*' 'OneLifeGame:*' 'OneLifeAudio:*' 'OneLifeTouch:*' 'AndroidRuntime:E'
 ```
 
-### Q2: 启动后黑屏或闪退
+关键日志标签：
+- `OneLife:I` — Android 平台层（启动诊断、socket、FPS）
+- `OneLifeGame:*` — gameSource（来自 AppLog）
+- `OneLifeAudio:*` — OpenSL ES 音频
+- `OneLifeTouch:*` — 触摸事件
+- `AndroidRuntime:E` — Java 层崩溃
 
-**诊断**：
+### 启动诊断（应看到）
+
+```
+OneLife : =========================================
+OneLife : OneLife Android 启动诊断
+OneLife :   内核: Linux 4.x (aarch64)         ← 真机应是 aarch64
+OneLife :   内存: 总 XXXMB, 可用 XXXMB
+OneLife :   屏幕: WxHdp, density=XXX (xhdpi/xxhdpi/xxxhdpi)
+OneLife :   方向: landscape
+OneLife : =========================================
+OneLife : EGL ready: 1920x1080  （或真机分辨率）
+OneLife : OpenGL ES:
+OneLife :   Vendor:   Qualcomm / ARM / ...
+OneLife :   Renderer: Adreno / Mali / ...
+OneLife : platformInit 1920x1080 @60fps
+OneLifeGame: OneLife client v437 (binV=436, dataV=437) starting up
+OneLifeAudio: ✓ OpenSL ES started: 44100 Hz stereo  ← 音频
+OneLife : FPS: 59.8 (min 14.5ms, max 22.1ms)  ← 5 秒后
+```
+
+### Socket 连接（点击 LOGIN 后）
+
+```
+OneLife : openSocketConnection: 192.168.1.10:8005
+```
+
+服务端日志应该同时出现：
+```
+New connection from xxx, x slot used / N
+```
+
+### 触摸坐标（点击屏幕时）
+
+```
+OneLifeTouch: up (X,Y) dur=Nms drag=0 right=0 shift=0
+```
+
+---
+
+## 故障排查
+
+### "应用未响应" / 白屏 / 黑屏 5 秒以上
+
 ```bash
-adb logcat -s AndroidRuntime:E | grep -A 20 "FATAL EXCEPTION"
+adb logcat -d -s 'OneLife:E' 'AndroidRuntime:E' -t 100
 ```
 
-**常见原因**：
-- EGL 初始化失败 → 设备不支持 OpenGL ES 1.x
-- 资源加载失败 → APK 损坏，重新构建
-- 内存不足 → 关闭其他应用
+常见原因：
+- **资源加载失败**：看 `OneLifeGame` 日志找 `Failed to open` 关键字
+- **GL 初始化失败**：找 `eglInitialize failed` 或 `eglMakeCurrent failed`
+- **崩溃**：找 `FATAL EXCEPTION` 或 `signal 11`，附 stacktrace
 
-### Q3: 登录界面按钮不显示
+### 看到登录界面但点 LOGIN 无反应
 
-**原因**：FPS 测量失败（default_settings 已修复）
-
-**验证**：
+检查触摸映射：
 ```bash
-adb shell run-as com.fengli.onelife cat files/settings/skipFPSMeasure.ini
-# 应输出：1
+adb logcat -d -s 'OneLifeTouch:*'
 ```
 
-### Q4: 点击移动无响应
+应看到 `up (X,Y) ...`。如果 X/Y 坐标看起来不对（比如总是 0 或负数），可能是 GL viewport 没设好（参考 design spec 中关于 `redoDrawMatrix` 的说明）。
 
-**诊断**：
+### 连接失败 / 服务端无新连接
+
 ```bash
-adb logcat -s OneLife:* | grep "screenToWorld\|pointerDown"
+# 1. 客户端日志看是否真的调用了 socket
+adb logcat -d -s 'OneLife:*' | grep openSocketConnection
+# 应有：openSocketConnection: <IP>:8005
+
+# 2. 验证手机能 ping 通服务端
+adb shell ping -c 3 <SERVER_IP>
+
+# 3. 验证 8005 端口可达
+adb shell "nc -w 2 <SERVER_IP> 8005 < /dev/null && echo OK"
+
+# 4. 服务端是否在监听
+ss -tlnp | grep 8005
 ```
 
-**常见原因**：
-- GL 投影矩阵错误 → 已在 game_stubs.cpp 修复
-- 触摸事件未传递 → 检查 TouchInputAdapter 日志
+### 音频静音
 
-### Q5: 连接服务器失败
-
-**检查清单**：
-1. 服务器是否启动？`ps aux | grep OneLifeServer`
-2. 端口是否监听？`netstat -an | grep 8005`
-3. 防火墙是否放行？`iptables -L | grep 8005`
-4. 设备与服务器在同一局域网？`ping <服务器IP>`
-5. customServerAddress.ini 是否正确？
-
-### Q6: 音频无声
-
-**诊断**：
 ```bash
-adb logcat -s OneLifeAudio:*
+adb logcat -d -s 'OneLifeAudio:*'
 ```
 
-**预期行为**：
-- 成功：`✓ OpenSL ES started: 44100 Hz stereo`
-- 失败：`audio disabled` → 静音运行，不影响游戏
+- 看到 `✓ OpenSL ES started`：音频引擎正常，可能是游戏侧暂时无 BGM
+- 看到 `audio disabled`：OpenSL ES 启动失败，游戏会静音运行但不影响玩
+- 看到 `slCreateEngine failed (result=X)`：设备 OpenSL 实现有问题，记录 result 码上报
 
-### Q7: UI 元素过小（高分屏）
+### 卡顿 / 帧率低
 
-**临时方案**：
-- 使用触控笔提高精度
-- 开启系统"放大手势"（设置 → 辅助功能）
-
-**长期方案**：
-- 实现 DPI 缩放（Phase 5 待办）
-
-### Q8: 发热严重
-
-**优化建议**：
-1. 降低帧率：修改 `targetFrameRate.ini` 为 30
-2. 后台暂停：按 Home 键自动停止渲染
-3. 关闭音频：删除 OpenSL ES 初始化代码
-
----
-
-## 性能基准
-
-### 测试设备：Android 模拟器（x86_64）
-
-| 指标 | 数值 |
-|------|------|
-| 分辨率 | 640×320 |
-| FPS | 58-60 |
-| 内存占用 | ~150MB |
-| APK 大小 | 76MB |
-| 首次启动 | ~3 秒 |
-| 连接服务器 | ~500ms |
-
-### 真机预期（arm64，1080p）
-
-| 指标 | 低端（4GB RAM） | 中端（6GB RAM） | 高端（8GB+ RAM） |
-|------|----------------|----------------|-----------------|
-| FPS | 30-45 | 50-60 | 60 |
-| 内存占用 | ~200MB | ~180MB | ~150MB |
-| 首次启动 | ~5 秒 | ~3 秒 | ~2 秒 |
-| 发热 | 明显 | 轻微 | 无 |
-
----
-
-## 已知限制
-
-### 功能限制
-- ❌ 离线模式（需要 EmbeddedBackend，Phase 6+）
-- ❌ 触屏专属 UI（虚拟摇杆、动作按钮）
-- ❌ 自动重连（网络断线需手动重启）
-- ❌ 崩溃上报（无 Crashlytics 集成）
-- ⚠️ 音频未测试（OpenSL ES 已接入但未验证）
-
-### 平台限制
-- 仅支持横屏（Manifest 锁定）
-- 仅支持 API 29+（Android 10+）
-- 不支持 x86（32 位）架构
-- 不支持分屏模式
-
-### UI 限制
-- 高分屏（xxhdpi+）UI 元素偏小
-- 无 DPI 自适应缩放
-- 无刘海屏/异形屏适配
-- 按钮触摸热区未放大
-
----
-
-## 下一步
-
-### 立即可做（Phase 5 剩余）
-
-1. **真机测试**（1-2 小时）
-   - 在真机上完整走一遍本指南
-   - 记录实际 FPS、内存、发热
-   - 验证音频是否正常
-
-2. **README 文档**（1 小时）
-   - 补充构建步骤
-   - 补充运行指南
-   - 补充已知限制
-
-### 可选优化
-
-3. **音频验证**（1-2 小时）
-   - 确认 BGM 和音效播放
-   - 测试音频暂停/恢复
-
-4. **DPI 缩放**（2-3 小时）
-   - 基于 density 动态缩放 UI
-   - 放大按钮触摸热区
-
-5. **自动重连**（2-3 小时）
-   - 检测断线后自动重试
-   - 显示重连进度
-
-### 未来扩展（不在当前计划）
-
-6. **嵌入式服务端**（11-16 周）
-   - 离线单机模式
-   - 本地多人联机
-
-7. **触屏专属 UI**（2-3 周）
-   - 虚拟摇杆
-   - 快捷动作按钮
-
-8. **Google Play 发布**（1 周）
-   - 签名密钥
-   - 隐私政策
-   - 商店素材
-
----
-
-## 技术细节
-
-### 真机准备改动（2025-05-13）
-
-| Task | 模块 | 改动 | 影响 |
-|------|------|------|------|
-| 13 | DeviceInfo | 启动诊断 + FPS 统计 | 方便真机调试 |
-| 15 | game_stubs | socket 参数验证 + 空指针检查 | 避免网络异常崩溃 |
-| 14 | game_stubs | readFromSocket 断线日志 | 快速诊断网络问题 |
-| 17 | DeviceInfo | 高分屏警告 | 提示 UI 缩放需求 |
-| 16 | OpenSLAudioBackend | 错误检测 + 优雅降级 | 音频失败不影响游戏 |
-
-### 架构概览
-
-```
-android/
-├── jni/
-│   ├── android_main.cpp       # NativeActivity 入口 + 主循环
-│   ├── DeviceInfo.cpp         # 设备诊断（启动信息 + FPS）
-│   ├── TouchInputAdapter.cpp  # 触摸→鼠标事件映射
-│   ├── SoftKeyboard.cpp       # 软键盘控制
-│   ├── game_stubs.cpp         # GL 投影 + socket API + 30+ stubs
-│   └── AssetFileBridge.cpp    # AAsset 注入 + 默认设置复制
-├── assets/                    # 软链接到 OneLifeData7
-├── build.sh                   # 一键构建脚本
-├── test_settings.sh           # 快速配置测试服务器
-└── REAL_DEVICE_GUIDE.md       # 本文档
-
-minorGems/sound/android/
-└── OpenSLAudioBackend.cpp     # OpenSL ES 音频后端
-
-minorGems/game/platforms/Android/
-└── gameAndroid.cpp            # minorGems 平台层 + socket API
+```bash
+adb logcat -d -s 'OneLife:*' | grep FPS
 ```
 
----
+- FPS < 30：性能问题，看 `max` 字段定位卡顿帧
+- FPS = 60 但视觉卡顿：可能是 GL 同步问题
 
-## 反馈与支持
+### UI 元素过小（高分屏常见）
 
-### 报告问题
+启动日志应有警告：
+```
+OneLife W: 高分屏设备（xxhdpi+）：UI 元素可能偏小，建议后续实现 DPI 缩放
+```
 
-1. **收集日志**：
-   ```bash
-   adb logcat -d > onelife-android.log
-   ```
-
-2. **设备信息**：
-   ```bash
-   adb shell getprop ro.build.version.release  # Android 版本
-   adb shell getprop ro.product.model          # 设备型号
-   adb shell getprop ro.product.cpu.abi        # CPU 架构
-   ```
-
-3. **提交 Issue**：
-   - 附上日志文件
-   - 描述复现步骤
-   - 标注预期行为 vs 实际行为
-
-### 文档更新
-
-- **CLAUDE.md**：项目总览 + Android 分支入口
-- **android/CLAUDE.md**：构建/运行/架构实战指南
-- **android/IMPLEMENTATION_STATUS.md**：执行计划对比 + 后续任务
-- **docs/superpowers/specs/2026-05-11-android-client-design.md**：设计思路
+这是已知限制（Phase 5 的 DPI 自适应任务），目前不影响玩，但按钮触摸热区较小。临时方案：用手指肚而不是指尖点击。
 
 ---
 
-**祝试玩愉快！** 🎮
+## 关键限制
+
+本次联调能跑通的功能：
+
+- ✅ 启动到登录界面
+- ✅ 软键盘输入 email/key
+- ✅ 触摸点击进入游戏
+- ✅ 移动 / 拾取 / 互动（点击 + 长按）
+- ✅ 音频（OpenSL ES）
+- ✅ 后台暂停省电
+
+**暂不支持**：
+
+- ❌ 自动重连（断网后需手动重启 app）
+- ❌ Settings 页面（改服务器地址需 adb）
+- ❌ DPI 自适应（高分屏 UI 偏小）
+- ❌ 异形屏/刘海屏特殊适配
+- ❌ 横竖屏切换（manifest 锁定横屏）
+- ❌ 多人同房间真机互动（需要至少两台真机或一真机一桌面客户端）
+
+详见 `android/IMPLEMENTATION_STATUS.md`。
+
+---
+
+## 联调检查清单
+
+出发前确认：
+
+- [ ] 构建机能跑通 `./build.sh release`（72MB APK）
+- [ ] 服务端 8005 端口监听
+- [ ] 选定了 Step 1 中的网络方案（A/B.1/B.2/B.3）
+- [ ] 手机 Android 版本 ≥ 10
+- [ ] 手机 CPU 是 arm64-v8a（设置 → 关于手机 → 处理器，或 `adb shell getprop ro.product.cpu.abi`）
+- [ ] 准备好 USB 线（如方案 4.A）
+- [ ] 手机已开启开发者选项 + USB 调试
+
+出现问题时可立即查的日志位置：
+
+- 启动诊断：`adb logcat -d -s 'OneLife:I' -t 50 | grep "启动诊断\|EGL ready\|OpenGL"`
+- 性能：`adb logcat -d -s 'OneLife:I' | grep FPS | tail -5`
+- 网络：`adb logcat -d -s 'OneLife:*' | grep -i socket`
+- 崩溃：`adb logcat -d -s 'AndroidRuntime:E' -t 50`
