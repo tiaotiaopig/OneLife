@@ -73,6 +73,10 @@ set(MINORGEMS_GRAPHICS
     ${MINORGEMS_ROOT}/game/doublePair.cpp
     ${MINORGEMS_ROOT}/game/Font.cpp
     ${MINORGEMS_ROOT}/game/drawUtils.cpp
+    ${MINORGEMS_ROOT}/game/platforms/openGL/gameGraphicsGL.cpp
+    ${MINORGEMS_ROOT}/game/platforms/openGL/SpriteGL.cpp
+    ${MINORGEMS_ROOT}/graphics/openGL/SingleTextureGL.cpp
+    ${MINORGEMS_ROOT}/io/linux/TypeIOLinux.cpp
     ${MINORGEMS_ROOT}/sound/formats/aiff.cpp
     ${MINORGEMS_ROOT}/util/StringBufferOutputStream.cpp
 )
