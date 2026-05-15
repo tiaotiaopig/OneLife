@@ -87,5 +87,32 @@ android/
 
 - `game_stubs.cpp` 中仍有 ~20 个空 stub（setDrawColor/drawSprite 等渲染函数由 gameSource 自身实现，stub 是历史遗留的未使用函数）
 - 音频（OpenSL ES）已接入但未验证
-- 真机 DPI 适配未验证（模拟器 640×320 正常）
 - `default_settings` 中 `skipFPSMeasure=1` 是 Android 必需的（否则登录按钮不显示）
+
+## 真机调试经验
+
+### 字体渲染问题（已解决）
+
+**症状**：真机上所有文字显示为白色方块，而不是清晰字母。
+
+**根本原因**：Android 端的 EGL 初始化后没有启用 OpenGL 的 alpha 混合（`GL_BLEND`），导致字体纹理的 alpha 通道被忽略。
+
+OneLife 字体渲染机制（Font.cpp）：
+1. 将字体 TGA 的 R 通道作为 alpha：`spriteRGBA[i].comp.a = spriteRGBA[i].comp.r`
+2. 将所有像素设为白色：`RGB = 255, 255, 255`
+3. 最终字符纹理：字符像素 `RGBA=(255,255,255,255)`，背景像素 `RGBA=(255,255,255,0)`
+
+**关键点**：背景像素的 alpha=0 需要 `GL_BLEND` 才能正确渲染为透明。没有 blend 时，背景也显示为不透明白色，整个字符方块变成白色方块。
+
+**修复**：在 `android_main.cpp` 的 EGL 初始化后添加（与桌面端 ScreenGL_SDL.cpp 一致）：
+```cpp
+glEnable(GL_BLEND);
+glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+```
+
+**排查教训**：
+1. 不要凭文件头部字节猜测整个文件内容（TGA 是 bottom-up 存储，头部是底部边界）
+2. 诊断要看完整数据，不要看局部（局部可能是边界标记，不是实际内容）
+3. 多模态模型应该直接看截图，不要用像素统计推测（统计只能区分"黑屏 vs 有内容"）
+4. OpenGL 状态初始化要完整（GL_BLEND 是字体渲染的必需设置）
+5. 优先验证桌面端的实际行为（桌面端用 TGAImageConverter 做标准 BGR→RGB 转换）

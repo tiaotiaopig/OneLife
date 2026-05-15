@@ -73,6 +73,13 @@ static int initEGL(struct android_app* app, AppState* s) {
     eglQuerySurface(s->display, s->surface, EGL_WIDTH,  &s->width);
     eglQuerySurface(s->display, s->surface, EGL_HEIGHT, &s->height);
     LOGI("EGL ready: %dx%d", s->width, s->height);
+
+    // 启用 alpha 混合（与桌面端 ScreenGL_SDL.cpp 一致）
+    // 字体渲染依赖此设置:字符纹理是 RGB=255 + A=字符强度,
+    // 没有 GL_BLEND 会显示为不透明白色方块
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
     onelife::DeviceInfo::logGLInfo();
     return 0;
 }
