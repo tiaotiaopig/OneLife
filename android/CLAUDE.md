@@ -116,3 +116,28 @@ glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 3. 多模态模型应该直接看截图，不要用像素统计推测（统计只能区分"黑屏 vs 有内容"）
 4. OpenGL 状态初始化要完整（GL_BLEND 是字体渲染的必需设置）
 5. 优先验证桌面端的实际行为（桌面端用 TGAImageConverter 做标准 BGR→RGB 转换）
+
+### 渲染实现问题（已解决）
+
+**症状**：commit 64a03580 删除了 game_stubs.cpp 中的 stub 函数，但构建失败（链接错误：缺少 fillSprite、drawQuads 等符号）。
+
+**根本原因**：commit 64a03580 删除了 stub 函数实现，注释说"由 gameGraphicsGL.cpp 提供"，但 CMakeLists.txt 中并没有包含这个文件，导致链接器找不到这些符号。
+
+**尝试的方案**：
+1. **方案 1（恢复 stub）→ 失败**：恢复 stub 函数虽然能构建，但 stub 都是空实现（返回假句柄 `0x1`），导致应用完全黑屏（渲染循环运行但什么都不画）
+2. **方案 2（添加真实实现）→ 成功**：在 CMakeLists.txt 中添加真实的渲染实现
+
+**修复**：在 `CMakeLists.txt` 的 `MINORGEMS_GRAPHICS` 中添加：
+```cmake
+${MINORGEMS_ROOT}/game/platforms/openGL/gameGraphicsGL.cpp  # 核心渲染函数
+${MINORGEMS_ROOT}/game/platforms/openGL/SpriteGL.cpp        # Sprite 类静态成员
+${MINORGEMS_ROOT}/graphics/openGL/SingleTextureGL.cpp       # 纹理管理
+${MINORGEMS_ROOT}/io/linux/TypeIOLinux.cpp                  # 字节序转换
+```
+
+**排查教训**：
+1. **Stub 函数只能用于编译，不能用于运行**：空实现让代码能链接通过，但运行时什么都不做
+2. **不要使用破坏性 git 操作**：避免 `git reset --hard`，使用 `git revert` 创建新 commit
+3. **逐步添加依赖**：通过查看链接错误，逐个添加缺失的源文件（gameGraphicsGL.cpp → SpriteGL.cpp → TypeIOLinux.cpp）
+4. **真机验证是必需的**：模拟器可能隐藏某些问题，真机测试才能发现实际渲染效果
+5. **commit message 要准确**：如果 commit 说"清理冗余 stub"，应该同时添加真实实现，否则是 broken commit
