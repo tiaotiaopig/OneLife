@@ -34,6 +34,8 @@ extern "C" void onelifeAndroidHideSoftKeyboard() {
 #include "minorGems/io/file/File.h"
 #include "minorGems/io/file/FileInputStream.h"
 #include "minorGems/graphics/converters/TGAImageConverter.h"
+#include "minorGems/io/InputStream.h"
+#include <string.h>
 #include "minorGems/io/file/Path.h"
 #include "minorGems/util/stringUtils.h"
 
@@ -62,47 +64,13 @@ typedef void* SpriteHandle;
 typedef void* SoundSpriteHandle;
 
 // gameGraphics.h - 颜色/混合模式
-void setDrawColor(float inR, float inG, float inB, float inA) {
-    // stub: 设置绘制颜色（OpenGL ES 实现）
-}
-
-void setDrawFade(float inA) {
-    // stub: 设置透明度
-}
-
-float getTotalGlobalFade() {
-    return 1.0f;
-}
-
-void toggleAdditiveBlend(char inAdditive) {
-    // stub: 切换加法混合模式
-}
-
-void toggleMultiplicativeBlend(char inMultiplicative) {
-    // stub: 切换乘法混合模式
-}
-
-void toggleAdditiveTextureColoring(char inAdditive) {
-    // stub: 切换纹理颜色加法模式
-}
+// 注：setDrawColor/setDrawFade/getTotalGlobalFade/toggleAdditiveBlend/
+//     toggleMultiplicativeBlend/toggleAdditiveTextureColoring 由
+//     minorGems/game/platforms/openGL/gameGraphicsGL.cpp 提供。
 
 // gameGraphics.h - sprite 加载/管理
-SpriteHandle fillSprite(unsigned char *inRGBA, unsigned int inWidth, unsigned int inHeight) {
-    // stub: 从 RGBA 数据创建 sprite（返回假句柄）
-    return (void*)0x1;
-}
-
-void freeSprite(SpriteHandle inSprite) {
-    // stub: 释放 sprite
-}
-
-void setSpriteCenterOffset(SpriteHandle inSprite, doublePair inOffset) {
-    // stub: 设置 sprite 中心偏移
-}
-
-void drawSprite(SpriteHandle inSprite, doublePair inCenter, double inZoom, double inRotation, char inFlipH) {
-    // stub: 绘制 sprite
-}
+// 注：drawSprite / freeSprite / setSpriteCenterOffset / fillSprite(unsigned char*) /
+//     fillSprite(Image*) 由 gameGraphicsGL.cpp 提供。
 
 RawRGBAImage* readTGAFileRawFromBuffer(unsigned char *inBuffer, int inLength) {
     // stub: 从 TGA 缓冲区读取图像（返回空）
@@ -110,8 +78,14 @@ RawRGBAImage* readTGAFileRawFromBuffer(unsigned char *inBuffer, int inLength) {
 }
 
 SpriteHandle loadSpriteBase(const char *inTGAFileName, char inTransparentLowerLeftCorner) {
-    // stub: 从主目录加载 sprite
-    return (void*)0x1;
+    // 实现真正的 sprite 加载(从主目录读取,不带 graphics/ 前缀)
+    Image *image = readTGAFileBase(inTGAFileName);
+    if (image == nullptr) {
+        return nullptr;
+    }
+    SpriteHandle handle = fillSprite(image, inTransparentLowerLeftCorner);
+    delete image;
+    return handle;
 }
 
 // game.h - sound sprite API
@@ -168,21 +142,8 @@ int16_t* stopRecording16BitMonoSound(int *outNumSamples) {
 //     切换到 musicPlayer2.cpp 后此处不再需要桩定义
 
 // gameGraphics.h - 更多绘制函数
-void toggleInvertedBlend(char inInverted) {
-    // stub: 切换反色混合模式
-}
-
-void startAddingToStencil(char inDrawColorToo, char inAdd, float inMinAlpha) {
-    // stub: 开始添加到模板缓冲区
-}
-
-void startDrawingThroughStencil(char inInvertStencil) {
-    // stub: 开始通过模板缓冲区绘制
-}
-
-void stopStencil() {
-    // stub: 停止模板缓冲区
-}
+// 注：toggleInvertedBlend / startAddingToStencil / startDrawingThroughStencil /
+//     stopStencil 均由 gameGraphicsGL.cpp 提供。
 
 void startOutputAllFrames() {
     // stub: 开始输出所有帧
@@ -201,54 +162,48 @@ void unlockAudio() {
     // stub: 解锁音频线程
 }
 
-// gameGraphics.h - setDrawColor 重载（FloatColor 已在 gameGraphics.h 中定义）
-void setDrawColor(FloatColor inColor) {
-    setDrawColor(inColor.r, inColor.g, inColor.b, inColor.a);
-}
+// gameGraphics.h - setDrawColor(FloatColor) 重载由 gameGraphicsGL.cpp 提供
 
 // gameGraphics.h - 更多 sprite 函数
+// 简易内存 InputStream，给 TGAImageConverter 用
+class MemInputStream : public InputStream {
+public:
+    MemInputStream(unsigned char *inBuf, int inLen)
+        : mBuf(inBuf), mLen(inLen), mPos(0) {}
+    virtual long read(unsigned char *outBuf, long inNumBytes) {
+        long avail = mLen - mPos;
+        long n = (inNumBytes < avail) ? inNumBytes : avail;
+        if (n > 0) {
+            memcpy(outBuf, mBuf + mPos, n);
+            mPos += n;
+        }
+        return n;
+    }
+private:
+    unsigned char *mBuf;
+    int mLen, mPos;
+};
+
 // 通过 minorGems File + 手动 TGA 解析读取（无 graphics/ 前缀）
 Image* readTGAFileBase(const char *inTGAFileName) {
     File tgaFile(NULL, (char*)inTGAFileName);
     int length = 0;
     unsigned char *data = tgaFile.readFileContents(&length);
-    if (data == nullptr || length < 18) {
+    if (data == nullptr || length <= 0) {
         if (data) delete [] data;
+        __android_log_print(ANDROID_LOG_WARN, "OneLife",
+            "readTGAFileBase: failed to read %s", inTGAFileName);
         return nullptr;
     }
-    int w = data[12] | (data[13] << 8);
-    int h = data[14] | (data[15] << 8);
-    int bpp = data[16];
-    int channels = bpp / 8;
-    int pixelDataOffset = 18 + data[0];
-    if (channels < 3 || channels > 4) { delete [] data; return nullptr; }
-    if (pixelDataOffset + w * h * channels > length) { delete [] data; return nullptr; }
-
-    Image *image = new Image(w, h, channels, false);
-    double *r = image->getChannel(0);
-    double *g = image->getChannel(1);
-    double *b = image->getChannel(2);
-    double *a = (channels == 4) ? image->getChannel(3) : nullptr;
-    unsigned char *pixels = data + pixelDataOffset;
-    char topToBottom = (data[17] & 0x20) != 0;
-    for (int y = 0; y < h; y++) {
-        int srcY = topToBottom ? y : (h - 1 - y);
-        for (int x = 0; x < w; x++) {
-            int srcIdx = (srcY * w + x) * channels;
-            int dstIdx = y * w + x;
-            b[dstIdx] = pixels[srcIdx + 0] / 255.0;
-            g[dstIdx] = pixels[srcIdx + 1] / 255.0;
-            r[dstIdx] = pixels[srcIdx + 2] / 255.0;
-            if (a) a[dstIdx] = pixels[srcIdx + 3] / 255.0;
-        }
-    }
+    MemInputStream stream(data, length);
+    TGAImageConverter converter;
+    Image *image = converter.deformatImage(&stream);
     delete [] data;
+    if (image == nullptr) {
+        __android_log_print(ANDROID_LOG_WARN, "OneLife",
+            "readTGAFileBase: TGAImageConverter failed on %s", inTGAFileName);
+    }
     return image;
-}
-
-SpriteHandle fillSprite(Image *inImage, char inTransparentLowerLeftCorner) {
-    // stub: 从 Image 创建 sprite
-    return (void*)0x1;
 }
 
 // 异步文件读取 API
@@ -277,29 +232,19 @@ unsigned char *getAsyncFileData( int inHandle, int *outDataLength ) {
 // ============================================================================
 
 // gameGraphics.h - 绘制四边形/三角形
-void drawQuads(int inNumQuads, double inVertices[]) {
-    // stub: 绘制四边形（顶点数组）
-}
-
-void drawQuads(int inNumQuads, double inVertices[], float inVertexColors[]) {
-    // stub: 绘制带颜色的四边形
-}
-
-void drawTriangles(int inNumTriangles, double inVertices[],
-                   char inFill, char inSmooth) {
-    // stub: 绘制三角形
-}
-
-void drawTrianglesColor(int inNumTriangles, double inVertices[],
-                        float inVertexColors[], char inFill, char inSmooth) {
-    // stub: 绘制带颜色的三角形
-}
+// 注：drawQuads / drawTriangles / drawTrianglesColor 均由 gameGraphicsGL.cpp 提供。
 
 // gameGraphics.h - 从文件加载 sprite
 SpriteHandle loadSprite(const char *inTGAFileName,
                         char inTransparentLowerLeftCorner) {
-    // stub: 从当前目录加载 sprite（返回假句柄）
-    return (void*)0x1;
+    // 从 graphics/ 目录加载 sprite
+    Image *image = readTGAFile(inTGAFileName);
+    if (image == nullptr) {
+        return nullptr;
+    }
+    SpriteHandle handle = fillSprite(image, inTransparentLowerLeftCorner);
+    delete image;
+    return handle;
 }
 
 // gameGraphics.h - 从文件读取 TGA（使用 graphics/ 子目录，与桌面端 gameSDL.cpp 行为一致）
@@ -313,20 +258,40 @@ Image* readTGAFile(const char *inTGAFileName) {
 
     int length = 0;
     unsigned char *data = tgaFile.readFileContents(&length);
-    if (data == nullptr || length < 18) {
+    if (data == nullptr || length <= 0) {
         if (data) delete [] data;
+        __android_log_print(ANDROID_LOG_WARN, "OneLife",
+            "readTGAFile: failed to read graphics/%s", inTGAFileName);
         return nullptr;
     }
 
-    // TGA 头：18 字节固定 + 可变 id 字段
+    if (length < 18) {
+        delete [] data;
+        __android_log_print(ANDROID_LOG_WARN, "OneLife",
+            "readTGAFile: graphics/%s too short (%d bytes)", inTGAFileName, length);
+        return nullptr;
+    }
+
     int w = data[12] | (data[13] << 8);
     int h = data[14] | (data[15] << 8);
     int bpp = data[16];
     int channels = bpp / 8;
-    int pixelDataOffset = 18 + data[0]; // data[0] = id length
+    int idLen = data[0];
+    int pixelDataOffset = 18 + idLen;
 
-    if (channels < 3 || channels > 4) { delete [] data; return nullptr; }
-    if (pixelDataOffset + w * h * channels > length) { delete [] data; return nullptr; }
+    if (channels < 3 || channels > 4) {
+        delete [] data;
+        __android_log_print(ANDROID_LOG_WARN, "OneLife",
+            "readTGAFile: graphics/%s unsupported bpp=%d", inTGAFileName, bpp);
+        return nullptr;
+    }
+
+    if (pixelDataOffset + w * h * channels > length) {
+        delete [] data;
+        __android_log_print(ANDROID_LOG_WARN, "OneLife",
+            "readTGAFile: graphics/%s truncated", inTGAFileName);
+        return nullptr;
+    }
 
     Image *image = new Image(w, h, channels, false);
     double *r = image->getChannel(0);
@@ -335,17 +300,20 @@ Image* readTGAFile(const char *inTGAFileName) {
     double *a = (channels == 4) ? image->getChannel(3) : nullptr;
 
     unsigned char *pixels = data + pixelDataOffset;
-    // TGA 像素顺序是 BGRA，默认自底向上，bit 5 of descriptor (data[17]) 为 1 时自顶向下
     char topToBottom = (data[17] & 0x20) != 0;
+
+    // TGA 像素是 BGRA 顺序,Image 通道 0=R, 1=G, 2=B, 3=A
+    // 需要做 BGR→RGB 交换(与桌面端 TGAImageConverter 一致)
     for (int y = 0; y < h; y++) {
         int srcY = topToBottom ? y : (h - 1 - y);
         for (int x = 0; x < w; x++) {
             int srcIdx = (srcY * w + x) * channels;
             int dstIdx = y * w + x;
-            b[dstIdx] = pixels[srcIdx + 0] / 255.0;
-            g[dstIdx] = pixels[srcIdx + 1] / 255.0;
-            r[dstIdx] = pixels[srcIdx + 2] / 255.0;
-            if (a) a[dstIdx] = pixels[srcIdx + 3] / 255.0;
+
+            r[dstIdx] = pixels[srcIdx + 2] / 255.0;  // TGA B位置 → R (BGR→RGB)
+            g[dstIdx] = pixels[srcIdx + 1] / 255.0;  // G → G
+            b[dstIdx] = pixels[srcIdx + 0] / 255.0;  // TGA R位置 → B (BGR→RGB)
+            if (a) a[dstIdx] = pixels[srcIdx + 3] / 255.0;  // A → A
         }
     }
 
@@ -354,10 +322,7 @@ Image* readTGAFile(const char *inTGAFileName) {
 }
 
 // gameGraphics.h - 获取当前绘制透明度
-float getDrawFade() {
-    // stub: 返回完全不透明
-    return 1.0f;
-}
+// 注：getDrawFade 由 gameGraphicsGL.cpp 提供
 
 // ============================================================================
 // GL 投影矩阵 + 视图管理（参考 gameSDL.cpp 的 redoDrawMatrix）
@@ -383,24 +348,21 @@ static void redoDrawMatrix() {
     glOrthof(gViewCenterX - wRadius, gViewCenterX + wRadius,
              gViewCenterY - hRadius, gViewCenterY + hRadius, -1.0f, 1.0f);
 
-    if (gVisibleHeight > 0) {
-        int screenWidth  = minorGemsAndroid::getPhysicalWidth();
-        int screenHeight = minorGemsAndroid::getPhysicalHeight();
+    // viewport 占满整个 EGL surface,letterbox 由 GL 投影矩阵处理
+    int vpX = 0, vpY = 0;
+    int vpW = minorGemsAndroid::getPhysicalWidth();
+    int vpH = minorGemsAndroid::getPhysicalHeight();
+    glViewport(vpX, vpY, vpW, vpH);
 
-        float portWide = (float)screenWidth;
-        float portHigh = (gVisibleHeight / gVisibleWidth) * portWide;
-
-        float screenHeightFraction = (float)screenHeight / (float)screenWidth;
-        if (screenHeightFraction < 9.0f / 16.0f) {
-            portHigh = (float)screenHeight;
-            portWide = (gVisibleWidth / gVisibleHeight) * portHigh;
-        }
-
-        float excessW = screenWidth - portWide;
-        float excessH = screenHeight - portHigh;
-
-        glViewport((int)(excessW / 2), (int)(excessH / 2),
-                   (int)portWide, (int)portHigh);
+    static int callCount = 0;
+    callCount++;
+    if (callCount <= 3 || callCount % 600 == 0) {
+        __android_log_print(ANDROID_LOG_INFO, "OneLife",
+            "redoDrawMatrix #%d: ortho L=%.1f R=%.1f B=%.1f T=%.1f viewport=%d,%d,%d,%d (vis=%.1fx%.1f size=%.1f)",
+            callCount,
+            gViewCenterX - wRadius, gViewCenterX + wRadius,
+            gViewCenterY - hRadius, gViewCenterY + hRadius,
+            vpX, vpY, vpW, vpH, gVisibleWidth, gVisibleHeight, gViewSize);
     }
 
     glMatrixMode(GL_MODELVIEW);
@@ -544,14 +506,7 @@ RawRGBAImage *readTGAFileRaw( const char *inTGAFileName ) {
 // 批 4a stubs：gameGraphics.h 函数（gameSDL.cpp 实现，Android 暂用桩）
 // ============================================================================
 
-void toggleLinearMagFilter( char inLinearFilterOn ) {
-    // stub: 无操作
-}
-
-char getLinearMagFilterOn() {
-    // stub: 返回关闭
-    return 0;
-}
+// 注：toggleLinearMagFilter / getLinearMagFilterOn 由 gameGraphicsGL.cpp 提供
 
 void getScreenDimensions( int *outWidth, int *outHeight ) {
     // stub: 返回默认分辨率
@@ -662,46 +617,15 @@ int getWebProgressSize( int inHandle ) {
 // ============================================================================
 
 // gameGraphics.h - 颜色查询
-FloatColor getDrawColor() {
-    FloatColor c = { 1.0f, 1.0f, 1.0f, 1.0f };
-    return c;
-}
+// 注：getDrawColor / getFloatColor 由 gameGraphicsGL.cpp 提供。
 
-FloatColor getFloatColor( const char *inHexString ) {
-    FloatColor c = { 1.0f, 1.0f, 1.0f, 1.0f };
-    (void)inHexString;
-    return c;
-}
-
-// gameGraphics.h - 灰度绘制切换
-void toggleGrayscaleDrawing( char inGrayscale, float inGrayscaleFraction,
-                              int inGrayscaleMode ) {
-    (void)inGrayscale; (void)inGrayscaleFraction; (void)inGrayscaleMode;
-}
-
-// gameGraphics.h - sprite 尺寸查询
-int getSpriteWidth( SpriteHandle inSprite ) {
-    (void)inSprite;
-    return 0;
-}
-
-int getSpriteHeight( SpriteHandle inSprite ) {
-    (void)inSprite;
-    return 0;
-}
-
-// gameGraphics.h - sprite 像素计数
-void startCountingSpritePixelsDrawn() {}
-double endCountingSpritePixelsDrawn() { return 0.0; }
-void startCountingSpritesDrawn() {}
-double endCountingSpritesDrawn() { return 0.0; }
+// gameGraphics.h - 灰度绘制 / sprite 查询 / sprite 像素计数 / drawSprite 带角点颜色
+// 注：toggleGrayscaleDrawing / getSpriteWidth / getSpriteHeight /
+//     startCountingSpritesDrawn / endCountingSpritesDrawn /
+//     startCountingSpritePixelsDrawn / endCountingSpritePixelsDrawn /
+//     drawSprite(各重载) 均由 gameGraphicsGL.cpp 提供。
 
 // gameGraphics.h - drawSprite 带角点颜色
-void drawSprite( SpriteHandle inSprite, doublePair inCornerPos[4],
-                 FloatColor inCornerColors[4] ) {
-    (void)inSprite; (void)inCornerPos; (void)inCornerColors;
-}
-
 // gameGraphics.h - 方差切换（sound sprite）
 void toggleVariance( SoundSpriteHandle inHandle, char inNoVariance ) {
     (void)inHandle; (void)inNoVariance;
@@ -863,18 +787,9 @@ void closeSocket( int inHandle ) {
 // 批 4c stubs（续）：game.h / gameGraphics.h 函数（gameSDL.cpp 实现，Android 暂用桩）
 // ============================================================================
 
-// gameGraphics.h - MipMap 控制
-void toggleMipMapMinFilter( char inMipMapFilterOn ) {
-    (void)inMipMapFilterOn;
-}
-
-void toggleMipMapGeneration( char inGenerateMipMaps ) {
-    (void)inGenerateMipMaps;
-}
-
-void toggleTransparentCropping( char inCrop ) {
-    (void)inCrop;
-}
+// gameGraphics.h - MipMap 控制 / Transparent cropping
+// 注：toggleMipMapMinFilter / toggleMipMapGeneration / toggleTransparentCropping
+//     均由 gameGraphicsGL.cpp 提供。
 
 // game.h - 视图大小 / 信箱
 void setViewSize( float inSize ) {
