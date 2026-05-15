@@ -85,9 +85,25 @@ android/
 
 ## 已知限制
 
-- `game_stubs.cpp` 中仍有 ~20 个空 stub（setDrawColor/drawSprite 等渲染函数由 gameSource 自身实现，stub 是历史遗留的未使用函数）
 - 音频（OpenSL ES）已接入但未验证
 - `default_settings` 中 `skipFPSMeasure=1` 是 Android 必需的（否则登录按钮不显示）
+
+## 真机调试注意事项
+
+### 首次连接真机
+
+| 事项 | 原因 | 解决方案 |
+|------|------|----------|
+| 首次插 USB 后点"允许此电脑调试" | Android 安全机制 | 点一次，勾选"始终允许"后免触发 |
+| 解锁手机屏幕 | 锁屏时 adb 部分功能受限 | 设置 → 开发者选项 → "充电时不锁屏"打开 |
+| 系统级敏感弹窗（安装未知来源） | 安全限制 | 点一次即可 |
+
+### 调试技巧
+
+- **截图验证**：`adb shell screencap -p /sdcard/screen.png && adb pull /sdcard/screen.png`
+- **UI 自动化**：`adb shell input tap/swipe/text/keyevent`
+- **实时日志**：`adb logcat -s 'OneLife:V' 'OneLifeGame:V'`
+- **清除应用数据**：`adb shell pm clear com.fengli.onelife`
 
 ## 真机调试经验
 
