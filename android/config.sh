@@ -7,10 +7,12 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
-# 优先级：环境变量 → 项目同级 → /root 默认路径
+# 优先级：环境变量 → 项目同级 → $HOME/android-tools → /root 默认路径
 if [[ -z "${ANDROID_NDK_ROOT:-}" ]]; then
     if [[ -d "${PROJECT_ROOT}/../android-tools/android-ndk-r25c" ]]; then
         export ANDROID_NDK_ROOT="${PROJECT_ROOT}/../android-tools/android-ndk-r25c"
+    elif [[ -d "$HOME/android-tools/android-ndk-r25c" ]]; then
+        export ANDROID_NDK_ROOT="$HOME/android-tools/android-ndk-r25c"
     else
         export ANDROID_NDK_ROOT="/root/android-tools/android-ndk-r25c"
     fi
@@ -19,6 +21,8 @@ fi
 if [[ -z "${ANDROID_SDK_ROOT:-}" ]]; then
     if [[ -d "${PROJECT_ROOT}/../android-tools/android-sdk" ]]; then
         export ANDROID_SDK_ROOT="${PROJECT_ROOT}/../android-tools/android-sdk"
+    elif [[ -d "$HOME/android-tools/android-sdk" ]]; then
+        export ANDROID_SDK_ROOT="$HOME/android-tools/android-sdk"
     else
         export ANDROID_SDK_ROOT="/root/android-tools/android-sdk"
     fi
